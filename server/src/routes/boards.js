@@ -8,7 +8,7 @@ router.use(auth);
 
 const YOUTUBE_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
 
-function extractYoutubeId(input) {
+export function extractYoutubeId(input) {
   if (typeof input !== "string") return null;
   const trimmed = input.trim();
 
@@ -45,7 +45,7 @@ function isHttpUrl(value) {
   }
 }
 
-function validateNode(node) {
+export function validateNode(node) {
   if (!node || typeof node !== "object") return "Invalid node";
   const type = node.type || "video";
   switch (type) {
