@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const nodeSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
-    youtubeId: { type: String, required: true },
+    youtubeId: { type: String, required: true, match: /^[a-zA-Z0-9_-]{11}$/ },
     title: { type: String, default: "" },
     notes: { type: String, default: "" },
     position: {
@@ -21,6 +21,10 @@ const edgeSchema = new mongoose.Schema(
     sourceHandle: { type: String, default: null },
     target: { type: String, required: true },
     targetHandle: { type: String, default: null },
+    color: { type: String, default: null },
+    label: { type: String, default: "" },
+    lineStyle: { type: String, enum: ["solid", "dashed", "dotted"], default: "solid" },
+    arrow: { type: Boolean, default: false },
   },
   { _id: false }
 );

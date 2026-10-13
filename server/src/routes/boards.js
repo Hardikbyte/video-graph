@@ -6,35 +6,34 @@ import auth from "../middleware/auth.js";
 const router = Router();
 router.use(auth);
 
+const YOUTUBE_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
+
 function extractYoutubeId(input) {
   if (!input) return null;
   const trimmed = input.trim();
 
-  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+  if (YOUTUBE_ID_PATTERN.test(trimmed)) {
     return trimmed;
   }
 
   try {
     const url = new URL(trimmed);
+    let id = null;
     if (url.hostname.includes("youtu.be")) {
-      return url.pathname.slice(1);
-    }
-    if (url.hostname.includes("youtube.com")) {
+      id = url.pathname.slice(1);
+    } else if (url.hostname.includes("youtube.com")) {
       if (url.pathname === "/watch") {
-        return url.searchParams.get("v");
-      }
-      if (url.pathname.startsWith("/embed/")) {
-        return url.pathname.split("/embed/")[1];
-      }
-      if (url.pathname.startsWith("/shorts/")) {
-        return url.pathname.split("/shorts/")[1];
+        id = url.searchParams.get("v");
+      } else if (url.pathname.startsWith("/embed/")) {
+        id = url.pathname.split("/embed/")[1];
+      } else if (url.pathname.startsWith("/shorts/")) {
+        id = url.pathname.split("/shorts/")[1];
       }
     }
+    return id && YOUTUBE_ID_PATTERN.test(id) ? id : null;
   } catch {
     return null;
   }
-
-  return null;
 }
 
 router.get("/", async (req, res) => {
@@ -69,11 +68,19 @@ router.put("/:id", async (req, res) => {
   if (Array.isArray(edges)) update.edges = edges;
   if (typeof name === "string" && name.trim()) update.name = name.trim();
 
-  const board = await Board.findOneAndUpdate(
-    { _id: req.params.id, owner: req.userId },
-    update,
-    { new: true }
-  );
+  let board;
+  try {
+    board = await Board.findOneAndUpdate(
+      { _id: req.params.id, owner: req.userId },
+      update,
+      { new: true, runValidators: true }
+    );
+  } catch (err) {
+    if (err.name === "ValidationError" || err.name === "CastError") {
+      return res.status(400).json({ error: err.message });
+    }
+    throw err;
+  }
 
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
