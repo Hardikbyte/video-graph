@@ -8,14 +8,43 @@ import {
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
+  MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../api/client.js";
 import VideoNode from "../components/VideoNode.jsx";
-import AddVideoModal from "../components/AddVideoModal.jsx";
+import FlowEdge from "../components/FlowEdge.jsx";
+import VideoFormModal from "../components/VideoFormModal.jsx";
+import { extractYoutubeId } from "../lib/youtube.js";
 
 const nodeTypes = { video: VideoNode };
+const edgeTypes = { flow: FlowEdge };
+const DEFAULT_EDGE_COLOR = "#9aa1c4";
+
+function serializeNode(n) {
+  return {
+    id: n.id,
+    youtubeId: n.data.youtubeId,
+    title: n.data.title,
+    notes: n.data.notes || "",
+    position: n.position,
+  };
+}
+
+function serializeEdge(e) {
+  return {
+    id: e.id,
+    source: e.source,
+    sourceHandle: e.sourceHandle,
+    target: e.target,
+    targetHandle: e.targetHandle,
+    color: e.data?.color || null,
+    label: e.data?.label || "",
+    lineStyle: e.data?.lineStyle || "solid",
+    arrow: !!e.data?.arrow,
+  };
+}
 
 function toFlowNodes(boardNodes) {
   return boardNodes.map((n) => ({
@@ -29,10 +58,17 @@ function toFlowNodes(boardNodes) {
 function toFlowEdges(boardEdges) {
   return boardEdges.map((e) => ({
     id: e.id,
+    type: "flow",
     source: e.source,
     sourceHandle: e.sourceHandle,
     target: e.target,
     targetHandle: e.targetHandle,
+    data: {
+      color: e.color || null,
+      label: e.label || "",
+      lineStyle: e.lineStyle || "solid",
+      arrow: !!e.arrow,
+    },
   }));
 }
 
@@ -47,14 +83,15 @@ export default function Board() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
 
   const saveTimeout = useRef(null);
+  const pendingSave = useRef(null);
   const skipNextSave = useRef(true);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     api
       .getBoard(token, id)
       .then((data) => {
@@ -75,24 +112,14 @@ export default function Board() {
     (nextNodes, nextEdges) => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
       setSaveStatus("saving");
+      const payload = {
+        nodes: nextNodes.map(serializeNode),
+        edges: nextEdges.map(serializeEdge),
+      };
+      pendingSave.current = payload;
       saveTimeout.current = setTimeout(async () => {
+        pendingSave.current = null;
         try {
-          const payload = {
-            nodes: nextNodes.map((n) => ({
-              id: n.id,
-              youtubeId: n.data.youtubeId,
-              title: n.data.title,
-              notes: n.data.notes || "",
-              position: n.position,
-            })),
-            edges: nextEdges.map((e) => ({
-              id: e.id,
-              source: e.source,
-              sourceHandle: e.sourceHandle,
-              target: e.target,
-              targetHandle: e.targetHandle,
-            })),
-          };
           await api.saveBoard(token, id, payload);
           setSaveStatus("saved");
         } catch (err) {
@@ -100,6 +127,17 @@ export default function Board() {
           setError(err.message);
         }
       }, 600);
+    },
+    [id, token]
+  );
+
+  useEffect(
+    () => () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      if (pendingSave.current) {
+        api.saveBoard(token, id, pendingSave.current).catch(() => {});
+        pendingSave.current = null;
+      }
     },
     [id, token]
   );
@@ -123,7 +161,18 @@ export default function Board() {
   );
 
   const onConnect = useCallback(
-    (connection) => setEdges((eds) => addEdge({ ...connection, id: crypto.randomUUID() }, eds)),
+    (connection) =>
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...connection,
+            id: crypto.randomUUID(),
+            type: "flow",
+            data: { color: null, label: "", lineStyle: "solid", arrow: false },
+          },
+          eds
+        )
+      ),
     []
   );
 
@@ -134,8 +183,8 @@ export default function Board() {
     };
     const updated = await api.addNode(token, id, { urlOrId, title, notes, position });
     setBoard(updated);
-    setNodes(toFlowNodes(updated.nodes));
-    skipNextSave.current = true;
+    const [created] = toFlowNodes(updated.nodes.slice(-1));
+    setNodes((nds) => [...nds, created]);
   }
 
   const onNoteChange = useCallback((nodeId, notes) => {
@@ -144,12 +193,55 @@ export default function Board() {
     );
   }, []);
 
+  const onNodeDelete = useCallback((nodeId) => {
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+  }, []);
+
+  const onNodeEdit = useCallback((nodeId) => setEditingNodeId(nodeId), []);
+
+  const onEdgeUpdate = useCallback((edgeId, patch) => {
+    setEdges((eds) =>
+      eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, ...patch } } : e))
+    );
+  }, []);
+
+  const onEdgeDelete = useCallback((edgeId) => {
+    setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+  }, []);
+
+  async function handleEditVideo({ urlOrId, title, notes }) {
+    const youtubeId = extractYoutubeId(urlOrId);
+    if (!youtubeId) throw new Error("Could not parse a YouTube video ID from input");
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === editingNodeId ? { ...n, data: { ...n.data, youtubeId, title, notes } } : n
+      )
+    );
+  }
+
   const nodesWithHandlers = useMemo(
-    () => nodes.map((n) => ({ ...n, data: { ...n.data, onNoteChange } })),
-    [nodes, onNoteChange]
+    () =>
+      nodes.map((n) => ({
+        ...n,
+        data: { ...n.data, onNoteChange, onEdit: onNodeEdit, onDelete: onNodeDelete },
+      })),
+    [nodes, onNoteChange, onNodeEdit, onNodeDelete]
   );
 
-  const nodeTypesMemo = useMemo(() => nodeTypes, []);
+  const edgesWithHandlers = useMemo(
+    () =>
+      edges.map((e) => ({
+        ...e,
+        markerEnd: e.data?.arrow
+          ? { type: MarkerType.ArrowClosed, color: e.data.color || DEFAULT_EDGE_COLOR }
+          : undefined,
+        data: { ...e.data, onEdgeUpdate, onEdgeDelete },
+      })),
+    [edges, onEdgeUpdate, onEdgeDelete]
+  );
+
+  const editingNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
 
   if (loading) {
     return <div className="page-center muted">Loading board...</div>;
@@ -179,11 +271,12 @@ export default function Board() {
       <div className="board-canvas">
         <ReactFlow
           nodes={nodesWithHandlers}
-          edges={edges}
+          edges={edgesWithHandlers}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          nodeTypes={nodeTypesMemo}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           minZoom={0.1}
         >
@@ -194,7 +287,20 @@ export default function Board() {
       </div>
 
       {showAddModal && (
-        <AddVideoModal onAdd={handleAddVideo} onClose={() => setShowAddModal(false)} />
+        <VideoFormModal onSubmit={handleAddVideo} onClose={() => setShowAddModal(false)} />
+      )}
+
+      {editingNode && (
+        <VideoFormModal
+          mode="edit"
+          initial={{
+            urlOrId: `https://youtu.be/${editingNode.data.youtubeId}`,
+            title: editingNode.data.title,
+            notes: editingNode.data.notes,
+          }}
+          onSubmit={handleEditVideo}
+          onClose={() => setEditingNodeId(null)}
+        />
       )}
     </div>
   );

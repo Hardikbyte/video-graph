@@ -1,22 +1,28 @@
 import { useState } from "react";
+import { extractYoutubeId } from "../lib/youtube.js";
 
-export default function AddVideoModal({ onAdd, onClose }) {
-  const [urlOrId, setUrlOrId] = useState("");
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
+export default function VideoFormModal({ mode = "add", initial, onSubmit, onClose }) {
+  const isEdit = mode === "edit";
+  const [urlOrId, setUrlOrId] = useState(initial?.urlOrId || "");
+  const [title, setTitle] = useState(initial?.title || "");
+  const [notes, setNotes] = useState(initial?.notes || "");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!urlOrId.trim()) return;
+    if (isEdit && !extractYoutubeId(urlOrId)) {
+      setError("Could not parse a YouTube video ID from input");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
-      await onAdd({ urlOrId: urlOrId.trim(), title: title.trim(), notes: notes.trim() });
+      await onSubmit({ urlOrId: urlOrId.trim(), title: title.trim(), notes: notes.trim() });
       onClose();
     } catch (err) {
-      setError(err.message || "Could not add video");
+      setError(err.message || (isEdit ? "Could not save video" : "Could not add video"));
     } finally {
       setSubmitting(false);
     }
@@ -25,7 +31,7 @@ export default function AddVideoModal({ onAdd, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <form className="modal-card" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h2>Add video</h2>
+        <h2>{isEdit ? "Edit video" : "Add video"}</h2>
 
         <label className="field">
           <span>YouTube URL or video ID</span>
@@ -60,7 +66,7 @@ export default function AddVideoModal({ onAdd, onClose }) {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? "Adding..." : "Add"}
+            {isEdit ? (submitting ? "Saving..." : "Save") : submitting ? "Adding..." : "Add"}
           </button>
         </div>
       </form>

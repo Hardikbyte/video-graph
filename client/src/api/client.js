@@ -39,10 +39,10 @@ export const api = {
 
   deleteBoard: (token, id) => request(`/boards/${id}`, { method: "DELETE", token }),
 
-  addNode: (token, id, { urlOrId, title, position }) =>
+  addNode: (token, id, { urlOrId, title, notes, position }) =>
     request(`/boards/${id}/nodes`, {
       method: "POST",
-      body: { urlOrId, title, position },
+      body: { urlOrId, title, notes, position },
       token,
     }),
 };

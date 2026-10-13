@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { Handle, NodeToolbar, Position } from "@xyflow/react";
 import { useInView } from "../hooks/useInView.js";
 
 const handles = [
@@ -9,12 +9,25 @@ const handles = [
   { id: "left", position: Position.Left },
 ];
 
-function VideoNode({ id, data }) {
+function VideoNode({ id, data, selected }) {
   const [ref, inView] = useInView({ rootMargin: "200px" });
   const [playing, setPlaying] = useState(false);
   const [noteDraft, setNoteDraft] = useState(data.notes || "");
 
-  const { youtubeId, title, onNoteChange } = data;
+  const { youtubeId, title, onNoteChange, onEdit, onDelete } = data;
+
+  const [prevNotes, setPrevNotes] = useState(data.notes);
+  if (data.notes !== prevNotes) {
+    setPrevNotes(data.notes);
+    setNoteDraft(data.notes || "");
+  }
+
+  const [prevYoutubeId, setPrevYoutubeId] = useState(youtubeId);
+  if (youtubeId !== prevYoutubeId) {
+    setPrevYoutubeId(youtubeId);
+    setPlaying(false);
+  }
+
   const thumbSrc = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 
   function commitNote() {
@@ -25,6 +38,14 @@ function VideoNode({ id, data }) {
 
   return (
     <div className="video-node" ref={ref}>
+      <NodeToolbar isVisible={selected} position={Position.Top} className="node-toolbar nodrag">
+        <button className="btn btn-ghost" onClick={() => onEdit?.(id)}>
+          Edit
+        </button>
+        <button className="btn btn-ghost btn-danger" onClick={() => onDelete?.(id)}>
+          Delete
+        </button>
+      </NodeToolbar>
       {handles.map((h) => (
         <Handle
           key={`t-${h.id}`}
