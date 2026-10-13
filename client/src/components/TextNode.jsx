@@ -1,11 +1,11 @@
 import { memo } from "react";
 import NodeShell from "./NodeShell.jsx";
 
-function TextNode({ id, data, selected }) {
+function TextNode({ data }) {
   const { title, text } = data;
 
   return (
-    <NodeShell id={id} selected={selected}>
+    <NodeShell>
       {title && (
         <div className="node-title" title={title}>
           {title}

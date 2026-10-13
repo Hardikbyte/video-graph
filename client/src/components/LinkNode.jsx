@@ -4,14 +4,14 @@ import NodeNotes from "./NodeNotes.jsx";
 import { hostnameOf, normalizeUrl } from "../lib/url.js";
 import { useLowDetail } from "../hooks/useLowDetail.js";
 
-function LinkNode({ id, data, selected }) {
+function LinkNode({ id, data }) {
   const { url, title, notes } = data;
   const lowDetail = useLowDetail();
   const safeUrl = normalizeUrl(url);
   const host = hostnameOf(safeUrl);
 
   return (
-    <NodeShell id={id} selected={selected}>
+    <NodeShell>
       <a
         className="link-node-card nodrag"
         href={safeUrl || undefined}

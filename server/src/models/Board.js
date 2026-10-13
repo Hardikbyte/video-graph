@@ -7,6 +7,7 @@ const nodeSchema = new mongoose.Schema(
     youtubeId: { type: String, default: "", match: /^[a-zA-Z0-9_-]{11}$/ },
     text: { type: String, default: "" },
     url: { type: String, default: "" },
+    section: { type: String, default: "" },
     title: { type: String, default: "" },
     notes: { type: String, default: "" },
     position: {

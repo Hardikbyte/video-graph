@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import { v4 as uuid } from "uuid";
 import Board from "../models/Board.js";
 import auth from "../middleware/auth.js";
@@ -65,6 +66,30 @@ export function validateNode(node) {
 
 const asString = (value) => (typeof value === "string" ? value : "");
 
+const DEFAULT_PAGE_SIZE = 24;
+const MAX_PAGE_SIZE = 50;
+
+// A cursor is just the array offset, base64url encoded so clients treat it as opaque.
+const encodeCursor = (offset) => Buffer.from(String(offset)).toString("base64url");
+
+function decodeCursor(cursor) {
+  if (!cursor) return 0;
+  const raw = Buffer.from(String(cursor), "base64url").toString();
+  return /^\d{1,9}$/.test(raw) ? Number(raw) : null;
+}
+
+// Distinct section names in order of first appearance, with their size and first offset.
+function summarizeSections(names) {
+  const sections = new Map();
+  names.forEach((name, offset) => {
+    const key = typeof name === "string" ? name : "";
+    const entry = sections.get(key);
+    if (entry) entry.count += 1;
+    else sections.set(key, { name: key, count: 1, offset });
+  });
+  return [...sections.values()];
+}
+
 router.get("/", async (req, res) => {
   const boards = await Board.find({ owner: req.userId })
     .select("name updatedAt createdAt")
@@ -88,6 +113,48 @@ router.get("/:id", async (req, res) => {
     return res.status(404).json({ error: "Board not found" });
   }
   res.json(board);
+});
+
+router.get("/:id/nodes", async (req, res) => {
+  const offset = decodeCursor(req.query.cursor);
+  if (offset === null) {
+    return res.status(400).json({ error: "Invalid cursor" });
+  }
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE));
+
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ error: "Board not found" });
+  }
+
+  const [board] = await Board.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.params.id),
+        owner: new mongoose.Types.ObjectId(req.userId),
+      },
+    },
+    {
+      $project: {
+        name: 1,
+        total: { $size: "$nodes" },
+        nodes: { $slice: ["$nodes", offset, limit] },
+        ...(offset === 0 ? { sectionNames: "$nodes.section" } : {}),
+      },
+    },
+  ]);
+
+  if (!board) {
+    return res.status(404).json({ error: "Board not found" });
+  }
+
+  const response = {
+    board: { id: board._id, name: board.name },
+    total: board.total,
+    nodes: board.nodes,
+    nextCursor: offset + limit < board.total ? encodeCursor(offset + limit) : null,
+  };
+  if (offset === 0) response.sections = summarizeSections(board.sectionNames || []);
+  res.json(response);
 });
 
 router.put("/:id", async (req, res) => {
@@ -130,7 +197,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 router.post("/:id/nodes", async (req, res) => {
-  const { type = "video", urlOrId, title, notes, text, url, position } = req.body || {};
+  const { type = "video", urlOrId, title, notes, text, url, section, position } = req.body || {};
 
   const node = {
     id: uuid(),
@@ -140,6 +207,7 @@ router.post("/:id/nodes", async (req, res) => {
     notes: asString(notes),
     text: asString(text),
     url: asString(url),
+    section: asString(section),
     position: position || { x: 100, y: 100 },
   };
 

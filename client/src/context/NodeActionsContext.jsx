@@ -1,13 +1,7 @@
 import { createContext, useContext } from "react";
 
-const noop = () => {};
-
 export const NodeActionsContext = createContext({
-  onNoteChange: noop,
-  onEdit: noop,
-  onDelete: noop,
-  onEdgeUpdate: noop,
-  onEdgeDelete: noop,
+  onNoteChange: () => {},
 });
 
 export function useNodeActions() {

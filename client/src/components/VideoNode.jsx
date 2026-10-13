@@ -6,7 +6,7 @@ import NodeNotes from "./NodeNotes.jsx";
 
 const IN_VIEW_OPTIONS = { rootMargin: "200px" };
 
-function VideoNode({ id, data, selected }) {
+function VideoNode({ id, data }) {
   const [ref, inView] = useInView(IN_VIEW_OPTIONS);
   const lowDetail = useLowDetail();
   const [playing, setPlaying] = useState(false);
@@ -22,7 +22,7 @@ function VideoNode({ id, data, selected }) {
   const thumbSrc = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 
   return (
-    <NodeShell id={id} selected={selected} innerRef={ref}>
+    <NodeShell innerRef={ref}>
       <div className="video-node-media">
         {lowDetail ? (
           <div className="video-node-placeholder video-node-static" />

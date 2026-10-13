@@ -37,12 +37,16 @@ export const api = {
   saveBoard: (token, id, { nodes, edges, name }) =>
     request(`/boards/${id}`, { method: "PUT", body: { nodes, edges, name }, token }),
 
+  getNodesPage: (token, id, { cursor, limit } = {}) => {
+    const params = new URLSearchParams();
+    if (cursor) params.set("cursor", cursor);
+    if (limit) params.set("limit", String(limit));
+    const query = params.toString();
+    return request(`/boards/${id}/nodes${query ? `?${query}` : ""}`, { token });
+  },
+
   deleteBoard: (token, id) => request(`/boards/${id}`, { method: "DELETE", token }),
 
-  addNode: (token, id, { urlOrId, title, notes, position }) =>
-    request(`/boards/${id}/nodes`, {
-      method: "POST",
-      body: { urlOrId, title, notes, position },
-      token,
-    }),
+  addNode: (token, id, node) =>
+    request(`/boards/${id}/nodes`, { method: "POST", body: node, token }),
 };

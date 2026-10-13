@@ -1,5 +1,4 @@
-import { Handle, NodeToolbar, Position } from "@xyflow/react";
-import { useNodeActions } from "../context/NodeActionsContext.jsx";
+import { Handle, Position } from "@xyflow/react";
 
 const handles = [
   { id: "top", position: Position.Top },
@@ -8,19 +7,9 @@ const handles = [
   { id: "left", position: Position.Left },
 ];
 
-export default function NodeShell({ id, selected, className = "", innerRef, children }) {
-  const { onEdit, onDelete } = useNodeActions();
-
+export default function NodeShell({ className = "", innerRef, children }) {
   return (
     <div className={`node-card ${className}`} ref={innerRef}>
-      <NodeToolbar isVisible={selected} position={Position.Top} className="node-toolbar nodrag">
-        <button className="btn btn-ghost" onClick={() => onEdit?.(id)}>
-          Edit
-        </button>
-        <button className="btn btn-ghost btn-danger" onClick={() => onDelete?.(id)}>
-          Delete
-        </button>
-      </NodeToolbar>
       {handles.map((h) => (
         <Handle
           key={`t-${h.id}`}

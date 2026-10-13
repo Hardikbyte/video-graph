@@ -12,20 +12,27 @@ const TYPES = [
 const LABELS = Object.fromEntries(TYPES.map((t) => [t.type, t.label]));
 
 function buildPayload(type, v) {
+  const section = v.section.trim();
   if (type === "video") {
     if (!extractYoutubeId(v.url)) throw new Error("Could not parse a YouTube video ID from input");
-    return { type, urlOrId: v.url.trim(), title: v.title.trim(), notes: v.notes.trim() };
+    return { type, urlOrId: v.url.trim(), title: v.title.trim(), notes: v.notes.trim(), section };
   }
   if (type === "text") {
     if (!v.text.trim()) throw new Error("Text is required");
-    return { type, title: v.title.trim(), text: v.text.trim() };
+    return { type, title: v.title.trim(), text: v.text.trim(), section };
   }
   const url = normalizeUrl(v.url);
   if (!url) throw new Error("Enter a valid http(s) URL");
-  return { type, url, title: v.title.trim(), notes: v.notes.trim() };
+  return { type, url, title: v.title.trim(), notes: v.notes.trim(), section };
 }
 
-export default function NodeFormModal({ mode = "add", initial, onSubmit, onClose }) {
+export default function NodeFormModal({
+  mode = "add",
+  initial,
+  sectionOptions = [],
+  onSubmit,
+  onClose,
+}) {
   const isEdit = mode === "edit";
   const [type, setType] = useState(isEdit ? initial.type : null);
   const [values, setValues] = useState({
@@ -33,6 +40,7 @@ export default function NodeFormModal({ mode = "add", initial, onSubmit, onClose
     title: initial?.title || "",
     notes: initial?.notes || "",
     text: initial?.text || "",
+    section: initial?.section || "",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -131,6 +139,21 @@ export default function NodeFormModal({ mode = "add", initial, onSubmit, onClose
             />
           </label>
         )}
+
+        <label className="field">
+          <span>Section (optional)</span>
+          <input
+            value={values.section}
+            onChange={set("section")}
+            placeholder="Group this under a heading"
+            list="section-options"
+          />
+          <datalist id="section-options">
+            {sectionOptions.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        </label>
 
         {error && <div className="auth-error">{error}</div>}
 

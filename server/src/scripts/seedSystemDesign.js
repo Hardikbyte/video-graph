@@ -73,7 +73,7 @@ function edge(source, target, sourceHandle, targetHandle, color, extra) {
   };
 }
 
-function makeNode(item, videoId, position) {
+function makeNode(stage, item, videoId, position) {
   return {
     id: uuid(),
     type: item.type,
@@ -82,6 +82,7 @@ function makeNode(item, videoId, position) {
     text: item.type === "text" ? item.text : "",
     title: item.title || "",
     notes: item.notes || "",
+    section: stage.title,
     position,
   };
 }
@@ -93,6 +94,7 @@ function makeHeader(stage, position) {
     title: stage.title,
     text: stage.summary,
     notes: "",
+    section: stage.title,
     position,
   };
 }
@@ -137,7 +139,7 @@ function buildColumnsBoard() {
     const entries = uniqueItems(stage, seen);
 
     for (const { item, videoId } of entries) {
-      const node = makeNode(item, videoId, { x, y });
+      const node = makeNode(stage, item, videoId, { x, y });
       nodes.push(node);
       edges.push(edge(previousId, node.id, "bottom", "top", stage.color, { lineStyle: "dashed" }));
       previousId = node.id;
@@ -176,7 +178,7 @@ function buildGridBoard() {
     for (let start = 0; start < entries.length; start += GRID_COLUMNS) {
       const row = entries.slice(start, start + GRID_COLUMNS);
       row.forEach(({ item, videoId }, col) => {
-        const node = makeNode(item, videoId, { x: GRID_LEFT + col * CELL_WIDTH, y: rowTop });
+        const node = makeNode(stage, item, videoId, { x: GRID_LEFT + col * CELL_WIDTH, y: rowTop });
         nodes.push(node);
         firstItemId ??= node.id;
       });
