@@ -1,6 +1,10 @@
 import { useState } from "react";
+import { useNodeActions } from "../context/NodeActionsContext.jsx";
+import { useLowDetail } from "../hooks/useLowDetail.js";
 
-export default function NodeNotes({ id, notes, onNoteChange }) {
+export default function NodeNotes({ id, notes }) {
+  const { onNoteChange } = useNodeActions();
+  const lowDetail = useLowDetail();
   const [draft, setDraft] = useState(notes || "");
 
   const [prevNotes, setPrevNotes] = useState(notes);
@@ -10,9 +14,13 @@ export default function NodeNotes({ id, notes, onNoteChange }) {
   }
 
   function commit() {
-    if (onNoteChange && draft !== notes) {
+    if (draft !== notes) {
       onNoteChange(id, draft);
     }
+  }
+
+  if (lowDetail) {
+    return <div className="node-notes node-notes-static">{notes}</div>;
   }
 
   return (

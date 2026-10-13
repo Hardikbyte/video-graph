@@ -1,4 +1,5 @@
 import { Handle, NodeToolbar, Position } from "@xyflow/react";
+import { useNodeActions } from "../context/NodeActionsContext.jsx";
 
 const handles = [
   { id: "top", position: Position.Top },
@@ -7,8 +8,8 @@ const handles = [
   { id: "left", position: Position.Left },
 ];
 
-export default function NodeShell({ id, data, selected, className = "", innerRef, children }) {
-  const { onEdit, onDelete } = data;
+export default function NodeShell({ id, selected, className = "", innerRef, children }) {
+  const { onEdit, onDelete } = useNodeActions();
 
   return (
     <div className={`node-card ${className}`} ref={innerRef}>

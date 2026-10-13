@@ -12,6 +12,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useAuth } from "../context/AuthContext.jsx";
+import { NodeActionsContext } from "../context/NodeActionsContext.jsx";
 import { api } from "../api/client.js";
 import VideoNode from "../components/VideoNode.jsx";
 import FlowEdge from "../components/FlowEdge.jsx";
@@ -67,21 +68,32 @@ function toFlowNodes(boardNodes) {
   }));
 }
 
+function withMarker(edge) {
+  return {
+    ...edge,
+    markerEnd: edge.data?.arrow
+      ? { type: MarkerType.ArrowClosed, color: edge.data.color || DEFAULT_EDGE_COLOR }
+      : undefined,
+  };
+}
+
 function toFlowEdges(boardEdges) {
-  return boardEdges.map((e) => ({
-    id: e.id,
-    type: "flow",
-    source: e.source,
-    sourceHandle: e.sourceHandle,
-    target: e.target,
-    targetHandle: e.targetHandle,
-    data: {
-      color: e.color || null,
-      label: e.label || "",
-      lineStyle: e.lineStyle || "solid",
-      arrow: !!e.arrow,
-    },
-  }));
+  return boardEdges.map((e) =>
+    withMarker({
+      id: e.id,
+      type: "flow",
+      source: e.source,
+      sourceHandle: e.sourceHandle,
+      target: e.target,
+      targetHandle: e.targetHandle,
+      data: {
+        color: e.color || null,
+        label: e.label || "",
+        lineStyle: e.lineStyle || "solid",
+        arrow: !!e.arrow,
+      },
+    })
+  );
 }
 
 export default function Board() {
@@ -98,9 +110,19 @@ export default function Board() {
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
 
+  const [revision, setRevision] = useState(0);
+
   const saveTimeout = useRef(null);
   const pendingSave = useRef(null);
-  const skipNextSave = useRef(true);
+  const latest = useRef({ nodes: [], edges: [] });
+
+  // Only changes that need persisting bump the revision (not drags in progress,
+  // selection or measurement changes), so autosave does not run on every frame.
+  const markDirty = useCallback(() => setRevision((r) => r + 1), []);
+
+  useEffect(() => {
+    latest.current = { nodes, edges };
+  }, [nodes, edges]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +133,6 @@ export default function Board() {
         setBoard(data);
         setNodes(toFlowNodes(data.nodes));
         setEdges(toFlowEdges(data.edges));
-        skipNextSave.current = true;
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -155,25 +176,30 @@ export default function Board() {
   );
 
   useEffect(() => {
-    if (skipNextSave.current) {
-      skipNextSave.current = false;
-      return;
-    }
-    scheduleSave(nodes, edges);
-  }, [nodes, edges, scheduleSave]);
+    if (revision === 0) return;
+    scheduleSave(latest.current.nodes, latest.current.edges);
+  }, [revision, scheduleSave]);
 
   const onNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
+    (changes) => {
+      setNodes((nds) => applyNodeChanges(changes, nds));
+      if (changes.some((c) => c.type === "remove" || (c.type === "position" && c.dragging === false))) {
+        markDirty();
+      }
+    },
+    [markDirty]
   );
 
   const onEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
+    (changes) => {
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+      if (changes.some((c) => c.type === "remove")) markDirty();
+    },
+    [markDirty]
   );
 
   const onConnect = useCallback(
-    (connection) =>
+    (connection) => {
       setEdges((eds) =>
         addEdge(
           {
@@ -184,8 +210,10 @@ export default function Board() {
           },
           eds
         )
-      ),
-    []
+      );
+      markDirty();
+    },
+    [markDirty]
   );
 
   async function handleAddNode(payload) {
@@ -199,28 +227,57 @@ export default function Board() {
     setNodes((nds) => [...nds, created]);
   }
 
-  const onNoteChange = useCallback((nodeId, notes) => {
-    setNodes((nds) =>
-      nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, notes } } : n))
-    );
-  }, []);
+  const onNoteChange = useCallback(
+    (nodeId, notes) => {
+      setNodes((nds) =>
+        nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, notes } } : n))
+      );
+      markDirty();
+    },
+    [markDirty]
+  );
 
-  const onNodeDelete = useCallback((nodeId) => {
-    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-  }, []);
+  const onNodeDelete = useCallback(
+    (nodeId) => {
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      markDirty();
+    },
+    [markDirty]
+  );
 
   const onNodeEdit = useCallback((nodeId) => setEditingNodeId(nodeId), []);
 
-  const onEdgeUpdate = useCallback((edgeId, patch) => {
-    setEdges((eds) =>
-      eds.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, ...patch } } : e))
-    );
-  }, []);
+  const onEdgeUpdate = useCallback(
+    (edgeId, patch) => {
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === edgeId ? withMarker({ ...e, data: { ...e.data, ...patch } }) : e
+        )
+      );
+      markDirty();
+    },
+    [markDirty]
+  );
 
-  const onEdgeDelete = useCallback((edgeId) => {
-    setEdges((eds) => eds.filter((e) => e.id !== edgeId));
-  }, []);
+  const onEdgeDelete = useCallback(
+    (edgeId) => {
+      setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+      markDirty();
+    },
+    [markDirty]
+  );
+
+  const actions = useMemo(
+    () => ({
+      onNoteChange,
+      onEdit: onNodeEdit,
+      onDelete: onNodeDelete,
+      onEdgeUpdate,
+      onEdgeDelete,
+    }),
+    [onNoteChange, onNodeEdit, onNodeDelete, onEdgeUpdate, onEdgeDelete]
+  );
 
   async function handleEditNode({ type, urlOrId, url, title, notes, text }) {
     const patch = { title, notes: notes ?? "", text: text ?? "", url: url ?? "" };
@@ -228,28 +285,8 @@ export default function Board() {
     setNodes((nds) =>
       nds.map((n) => (n.id === editingNodeId ? { ...n, data: { ...n.data, ...patch } } : n))
     );
+    markDirty();
   }
-
-  const nodesWithHandlers = useMemo(
-    () =>
-      nodes.map((n) => ({
-        ...n,
-        data: { ...n.data, onNoteChange, onEdit: onNodeEdit, onDelete: onNodeDelete },
-      })),
-    [nodes, onNoteChange, onNodeEdit, onNodeDelete]
-  );
-
-  const edgesWithHandlers = useMemo(
-    () =>
-      edges.map((e) => ({
-        ...e,
-        markerEnd: e.data?.arrow
-          ? { type: MarkerType.ArrowClosed, color: e.data.color || DEFAULT_EDGE_COLOR }
-          : undefined,
-        data: { ...e.data, onEdgeUpdate, onEdgeDelete },
-      })),
-    [edges, onEdgeUpdate, onEdgeDelete]
-  );
 
   const editingNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
 
@@ -279,21 +316,24 @@ export default function Board() {
       </header>
 
       <div className="board-canvas">
-        <ReactFlow
-          nodes={nodesWithHandlers}
-          edges={edgesWithHandlers}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          minZoom={0.1}
-        >
-          <Background />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
+        <NodeActionsContext.Provider value={actions}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            minZoom={0.1}
+            onlyRenderVisibleElements
+          >
+            <Background />
+            <Controls />
+            <MiniMap pannable zoomable />
+          </ReactFlow>
+        </NodeActionsContext.Provider>
       </div>
 
       {showAddModal && (

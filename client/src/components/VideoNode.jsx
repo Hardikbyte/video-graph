@@ -1,13 +1,17 @@
 import { memo, useState } from "react";
 import { useInView } from "../hooks/useInView.js";
+import { useLowDetail } from "../hooks/useLowDetail.js";
 import NodeShell from "./NodeShell.jsx";
 import NodeNotes from "./NodeNotes.jsx";
 
+const IN_VIEW_OPTIONS = { rootMargin: "200px" };
+
 function VideoNode({ id, data, selected }) {
-  const [ref, inView] = useInView({ rootMargin: "200px" });
+  const [ref, inView] = useInView(IN_VIEW_OPTIONS);
+  const lowDetail = useLowDetail();
   const [playing, setPlaying] = useState(false);
 
-  const { youtubeId, title, notes, onNoteChange } = data;
+  const { youtubeId, title, notes } = data;
 
   const [prevYoutubeId, setPrevYoutubeId] = useState(youtubeId);
   if (youtubeId !== prevYoutubeId) {
@@ -18,9 +22,11 @@ function VideoNode({ id, data, selected }) {
   const thumbSrc = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
 
   return (
-    <NodeShell id={id} data={data} selected={selected} innerRef={ref}>
+    <NodeShell id={id} selected={selected} innerRef={ref}>
       <div className="video-node-media">
-        {playing ? (
+        {lowDetail ? (
+          <div className="video-node-placeholder video-node-static" />
+        ) : playing ? (
           <iframe
             className="video-node-iframe"
             src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
@@ -46,7 +52,7 @@ function VideoNode({ id, data, selected }) {
         {title || youtubeId}
       </div>
 
-      <NodeNotes id={id} notes={notes} onNoteChange={onNoteChange} />
+      <NodeNotes id={id} notes={notes} />
     </NodeShell>
   );
 }

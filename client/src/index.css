@@ -329,7 +329,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .video-node-media {
@@ -354,6 +354,17 @@ button {
   100% {
     background-position: 0 0;
   }
+}
+
+.video-node-static {
+  animation: none;
+}
+
+.node-notes-static {
+  min-height: 3.2rem;
+  max-height: 3.2rem;
+  overflow: hidden;
+  white-space: pre-wrap;
 }
 
 .video-node-thumb-btn {

@@ -5,7 +5,7 @@ function TextNode({ id, data, selected }) {
   const { title, text } = data;
 
   return (
-    <NodeShell id={id} data={data} selected={selected}>
+    <NodeShell id={id} selected={selected}>
       {title && (
         <div className="node-title" title={title}>
           {title}

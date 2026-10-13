@@ -10,10 +10,16 @@ const BOARD_NAME = "System Design";
 const COLUMN_WIDTH = 300;
 const HEADER_HEIGHT = 150;
 const GAP = 50;
+const GRID_COLUMNS = 5;
+const GRID_LEFT = 300;
+const CELL_WIDTH = 260;
+const ROW_GAP = 40;
+const STAGE_GAP = 120;
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has("--dry-run");
 const replace = args.has("--replace");
+const useColumnsLayout = args.has("--layout=columns");
 
 function estimateHeight(item) {
   if (item.type === "video") return 250;
@@ -67,7 +73,48 @@ function edge(source, target, sourceHandle, targetHandle, color, extra) {
   };
 }
 
-function buildBoard() {
+function makeNode(item, videoId, position) {
+  return {
+    id: uuid(),
+    type: item.type,
+    youtubeId: videoId || "",
+    url: item.type === "link" ? item.url : "",
+    text: item.type === "text" ? item.text : "",
+    title: item.title || "",
+    notes: item.notes || "",
+    position,
+  };
+}
+
+function makeHeader(stage, position) {
+  return {
+    id: uuid(),
+    type: "text",
+    title: stage.title,
+    text: stage.summary,
+    notes: "",
+    position,
+  };
+}
+
+// Drops duplicates (same video or same URL or same note title) across all stages.
+function uniqueItems(stage, seen) {
+  const result = [];
+  for (const item of stage.items) {
+    const videoId = item.type === "video" ? extractYoutubeId(item.url) : null;
+    const key = videoId ? `video:${videoId}` : item.type === "text" ? `text:${item.title}` : item.url;
+    if (seen.has(key)) {
+      console.warn(`Skipping duplicate: ${key}`);
+      continue;
+    }
+    seen.add(key);
+    result.push({ item, videoId });
+  }
+  return result;
+}
+
+// Old layout: one tall column per stage, items chained top to bottom.
+function buildColumnsBoard() {
   const nodes = [];
   const edges = [];
   const seen = new Set();
@@ -76,69 +123,89 @@ function buildBoard() {
 
   SYSTEM_DESIGN_STAGES.forEach((stage, column) => {
     const x = column * COLUMN_WIDTH;
-    const header = {
-      id: uuid(),
-      type: "text",
-      title: stage.title,
-      text: stage.summary,
-      notes: "",
-      position: { x, y: 0 },
-    };
+    const header = makeHeader(stage, { x, y: 0 });
     nodes.push(header);
 
     if (previousHeaderId) {
       const previous = SYSTEM_DESIGN_STAGES[column - 1];
-      edges.push(
-        edge(previousHeaderId, header.id, "right", "left", previous.color, { arrow: true })
-      );
+      edges.push(edge(previousHeaderId, header.id, "right", "left", previous.color, { arrow: true }));
     }
     previousHeaderId = header.id;
 
     let y = HEADER_HEIGHT + GAP;
     let previousId = header.id;
-    let added = 0;
+    const entries = uniqueItems(stage, seen);
 
-    for (const item of stage.items) {
-      const key = item.type === "text" ? `text:${item.title}` : item.url;
-      const videoId = item.type === "video" ? extractYoutubeId(item.url) : null;
-      const dedupeKey = videoId ? `video:${videoId}` : key;
-      if (seen.has(dedupeKey)) {
-        console.warn(`Skipping duplicate: ${dedupeKey}`);
-        continue;
-      }
-      seen.add(dedupeKey);
-
-      const node = {
-        id: uuid(),
-        type: item.type,
-        youtubeId: videoId || "",
-        url: item.type === "link" ? item.url : "",
-        text: item.type === "text" ? item.text : "",
-        title: item.title || "",
-        notes: item.notes || "",
-        position: { x, y },
-      };
+    for (const { item, videoId } of entries) {
+      const node = makeNode(item, videoId, { x, y });
       nodes.push(node);
-      edges.push(
-        edge(previousId, node.id, "bottom", "top", stage.color, { lineStyle: "dashed" })
-      );
+      edges.push(edge(previousId, node.id, "bottom", "top", stage.color, { lineStyle: "dashed" }));
       previousId = node.id;
       y += estimateHeight(item) + GAP;
-      added += 1;
     }
-    counts.push({ stage: stage.title, items: added });
+    counts.push({ stage: stage.title, items: entries.length });
+  });
+
+  return { nodes, edges, counts };
+}
+
+// New layout: stage headers form a vertical spine on the left, and each stage's
+// items fill a tidy grid to the right of its header.
+function buildGridBoard() {
+  const nodes = [];
+  const edges = [];
+  const seen = new Set();
+  const counts = [];
+  let previousHeaderId = null;
+  let blockTop = 0;
+
+  SYSTEM_DESIGN_STAGES.forEach((stage, index) => {
+    const header = makeHeader(stage, { x: 0, y: blockTop });
+    nodes.push(header);
+
+    if (previousHeaderId) {
+      const previous = SYSTEM_DESIGN_STAGES[index - 1];
+      edges.push(edge(previousHeaderId, header.id, "bottom", "top", previous.color, { arrow: true }));
+    }
+    previousHeaderId = header.id;
+
+    const entries = uniqueItems(stage, seen);
+    let rowTop = blockTop;
+    let firstItemId = null;
+
+    for (let start = 0; start < entries.length; start += GRID_COLUMNS) {
+      const row = entries.slice(start, start + GRID_COLUMNS);
+      row.forEach(({ item, videoId }, col) => {
+        const node = makeNode(item, videoId, { x: GRID_LEFT + col * CELL_WIDTH, y: rowTop });
+        nodes.push(node);
+        firstItemId ??= node.id;
+      });
+      rowTop += Math.max(...row.map(({ item }) => estimateHeight(item))) + ROW_GAP;
+    }
+
+    if (firstItemId) {
+      edges.push(edge(header.id, firstItemId, "right", "left", stage.color, { lineStyle: "dashed" }));
+    }
+    blockTop = Math.max(rowTop, blockTop + HEADER_HEIGHT) + STAGE_GAP;
+    counts.push({ stage: stage.title, items: entries.length });
   });
 
   return { nodes, edges, counts };
 }
 
 async function main() {
-  const { nodes, edges, counts } = buildBoard();
+  const { nodes, edges, counts } = useColumnsLayout ? buildColumnsBoard() : buildGridBoard();
 
   const errors = nodes.map((n) => validateNode(n)).filter(Boolean);
   if (errors.length) {
     console.error(`Validation failed for ${errors.length} node(s):`);
     errors.forEach((e) => console.error(` - ${e}`));
+    process.exit(1);
+  }
+
+  const positions = new Set(nodes.map((n) => `${n.position.x},${n.position.y}`));
+  if (positions.size !== nodes.length) {
+    console.error("Layout bug: two nodes share the same position");
     process.exit(1);
   }
 

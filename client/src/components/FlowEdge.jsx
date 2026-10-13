@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from "@xyflow/react";
+import { useNodeActions } from "../context/NodeActionsContext.jsx";
 
 const DEFAULT_COLOR = "#9aa1c4";
 const PRESET_COLORS = [
@@ -26,7 +27,8 @@ function FlowEdge({
   markerEnd,
   data = {},
 }) {
-  const { color, label, lineStyle = "solid", arrow, onEdgeUpdate, onEdgeDelete } = data;
+  const { color, label, lineStyle = "solid", arrow } = data;
+  const { onEdgeUpdate, onEdgeDelete } = useNodeActions();
   const stroke = color || DEFAULT_COLOR;
 
   const [path, labelX, labelY] = getBezierPath({
