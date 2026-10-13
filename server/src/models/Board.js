@@ -3,7 +3,10 @@ import mongoose from "mongoose";
 const nodeSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
-    youtubeId: { type: String, required: true, match: /^[a-zA-Z0-9_-]{11}$/ },
+    type: { type: String, enum: ["video", "text", "image", "link"], default: "video" },
+    youtubeId: { type: String, default: "", match: /^[a-zA-Z0-9_-]{11}$/ },
+    text: { type: String, default: "" },
+    url: { type: String, default: "" },
     title: { type: String, default: "" },
     notes: { type: String, default: "" },
     position: {

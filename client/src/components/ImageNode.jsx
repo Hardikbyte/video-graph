@@ -1,0 +1,42 @@
+import { memo, useState } from "react";
+import NodeShell from "./NodeShell.jsx";
+import NodeNotes from "./NodeNotes.jsx";
+
+function ImageNode({ id, data, selected }) {
+  const { url, title, notes, onNoteChange } = data;
+  const [failed, setFailed] = useState(false);
+
+  const [prevUrl, setPrevUrl] = useState(url);
+  if (url !== prevUrl) {
+    setPrevUrl(url);
+    setFailed(false);
+  }
+
+  return (
+    <NodeShell id={id} data={data} selected={selected}>
+      <div className="image-node-media">
+        {failed ? (
+          <div className="image-node-fallback">Image could not be loaded</div>
+        ) : (
+          <img
+            src={url}
+            alt={title || "Image"}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onError={() => setFailed(true)}
+          />
+        )}
+      </div>
+
+      {title && (
+        <div className="node-title" title={title}>
+          {title}
+        </div>
+      )}
+
+      <NodeNotes id={id} notes={notes} onNoteChange={onNoteChange} />
+    </NodeShell>
+  );
+}
+
+export default memo(ImageNode);

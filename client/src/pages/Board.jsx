@@ -15,18 +15,24 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../api/client.js";
 import VideoNode from "../components/VideoNode.jsx";
 import FlowEdge from "../components/FlowEdge.jsx";
-import VideoFormModal from "../components/VideoFormModal.jsx";
+import TextNode from "../components/TextNode.jsx";
+import ImageNode from "../components/ImageNode.jsx";
+import LinkNode from "../components/LinkNode.jsx";
+import NodeFormModal from "../components/NodeFormModal.jsx";
 import { extractYoutubeId } from "../lib/youtube.js";
 
-const nodeTypes = { video: VideoNode };
+const nodeTypes = { video: VideoNode, text: TextNode, image: ImageNode, link: LinkNode };
 const edgeTypes = { flow: FlowEdge };
 const DEFAULT_EDGE_COLOR = "#9aa1c4";
 
 function serializeNode(n) {
   return {
     id: n.id,
-    youtubeId: n.data.youtubeId,
-    title: n.data.title,
+    type: n.type,
+    youtubeId: n.type === "video" ? n.data.youtubeId : "",
+    text: n.data.text || "",
+    url: n.data.url || "",
+    title: n.data.title || "",
     notes: n.data.notes || "",
     position: n.position,
   };
@@ -49,9 +55,15 @@ function serializeEdge(e) {
 function toFlowNodes(boardNodes) {
   return boardNodes.map((n) => ({
     id: n.id,
-    type: "video",
+    type: n.type || "video",
     position: n.position,
-    data: { youtubeId: n.youtubeId, title: n.title, notes: n.notes || "" },
+    data: {
+      youtubeId: n.youtubeId,
+      title: n.title,
+      notes: n.notes || "",
+      text: n.text || "",
+      url: n.url || "",
+    },
   }));
 }
 
@@ -176,12 +188,12 @@ export default function Board() {
     []
   );
 
-  async function handleAddVideo({ urlOrId, title, notes }) {
+  async function handleAddNode(payload) {
     const position = {
       x: 80 + Math.random() * 400,
       y: 80 + Math.random() * 300,
     };
-    const updated = await api.addNode(token, id, { urlOrId, title, notes, position });
+    const updated = await api.addNode(token, id, { ...payload, position });
     setBoard(updated);
     const [created] = toFlowNodes(updated.nodes.slice(-1));
     setNodes((nds) => [...nds, created]);
@@ -210,13 +222,11 @@ export default function Board() {
     setEdges((eds) => eds.filter((e) => e.id !== edgeId));
   }, []);
 
-  async function handleEditVideo({ urlOrId, title, notes }) {
-    const youtubeId = extractYoutubeId(urlOrId);
-    if (!youtubeId) throw new Error("Could not parse a YouTube video ID from input");
+  async function handleEditNode({ type, urlOrId, url, title, notes, text }) {
+    const patch = { title, notes: notes ?? "", text: text ?? "", url: url ?? "" };
+    if (type === "video") patch.youtubeId = extractYoutubeId(urlOrId);
     setNodes((nds) =>
-      nds.map((n) =>
-        n.id === editingNodeId ? { ...n, data: { ...n.data, youtubeId, title, notes } } : n
-      )
+      nds.map((n) => (n.id === editingNodeId ? { ...n, data: { ...n.data, ...patch } } : n))
     );
   }
 
@@ -263,7 +273,7 @@ export default function Board() {
             {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : saveStatus === "error" ? "Save failed" : ""}
           </span>
           <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-            + Add video
+            + Add
           </button>
         </div>
       </header>
@@ -287,18 +297,23 @@ export default function Board() {
       </div>
 
       {showAddModal && (
-        <VideoFormModal onSubmit={handleAddVideo} onClose={() => setShowAddModal(false)} />
+        <NodeFormModal onSubmit={handleAddNode} onClose={() => setShowAddModal(false)} />
       )}
 
       {editingNode && (
-        <VideoFormModal
+        <NodeFormModal
           mode="edit"
           initial={{
-            urlOrId: `https://youtu.be/${editingNode.data.youtubeId}`,
+            type: editingNode.type,
+            url:
+              editingNode.type === "video"
+                ? `https://youtu.be/${editingNode.data.youtubeId}`
+                : editingNode.data.url,
             title: editingNode.data.title,
             notes: editingNode.data.notes,
+            text: editingNode.data.text,
           }}
-          onSubmit={handleEditVideo}
+          onSubmit={handleEditNode}
           onClose={() => setEditingNodeId(null)}
         />
       )}

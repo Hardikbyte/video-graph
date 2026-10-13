@@ -9,7 +9,7 @@ router.use(auth);
 const YOUTUBE_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
 
 function extractYoutubeId(input) {
-  if (!input) return null;
+  if (typeof input !== "string") return null;
   const trimmed = input.trim();
 
   if (YOUTUBE_ID_PATTERN.test(trimmed)) {
@@ -35,6 +35,35 @@ function extractYoutubeId(input) {
     return null;
   }
 }
+
+function isHttpUrl(value) {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function validateNode(node) {
+  if (!node || typeof node !== "object") return "Invalid node";
+  const type = node.type || "video";
+  switch (type) {
+    case "video":
+      return YOUTUBE_ID_PATTERN.test(node.youtubeId || "")
+        ? null
+        : "Could not parse a YouTube video ID from input";
+    case "text":
+      return typeof node.text === "string" && node.text.trim() ? null : "Text node needs some text";
+    case "image":
+    case "link":
+      return isHttpUrl(node.url) ? null : `${type} node needs a valid http(s) URL`;
+    default:
+      return `Unknown node type "${type}"`;
+  }
+}
+
+const asString = (value) => (typeof value === "string" ? value : "");
 
 router.get("/", async (req, res) => {
   const boards = await Board.find({ owner: req.userId })
@@ -64,7 +93,11 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { nodes, edges, name } = req.body || {};
   const update = {};
-  if (Array.isArray(nodes)) update.nodes = nodes;
+  if (Array.isArray(nodes)) {
+    const nodeError = nodes.map(validateNode).find(Boolean);
+    if (nodeError) return res.status(400).json({ error: nodeError });
+    update.nodes = nodes;
+  }
   if (Array.isArray(edges)) update.edges = edges;
   if (typeof name === "string" && name.trim()) update.name = name.trim();
 
@@ -97,25 +130,28 @@ router.delete("/:id", async (req, res) => {
 });
 
 router.post("/:id/nodes", async (req, res) => {
-  const { urlOrId, title, notes, position } = req.body || {};
-  const youtubeId = extractYoutubeId(urlOrId);
+  const { type = "video", urlOrId, title, notes, text, url, position } = req.body || {};
 
-  if (!youtubeId) {
-    return res.status(400).json({ error: "Could not parse a YouTube video ID from input" });
+  const node = {
+    id: uuid(),
+    type,
+    youtubeId: type === "video" ? extractYoutubeId(urlOrId) || "" : "",
+    title: asString(title),
+    notes: asString(notes),
+    text: asString(text),
+    url: asString(url),
+    position: position || { x: 100, y: 100 },
+  };
+
+  const nodeError = validateNode(node);
+  if (nodeError) {
+    return res.status(400).json({ error: nodeError });
   }
 
   const board = await Board.findOne({ _id: req.params.id, owner: req.userId });
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
   }
-
-  const node = {
-    id: uuid(),
-    youtubeId,
-    title: title || "",
-    notes: notes || "",
-    position: position || { x: 100, y: 100 },
-  };
 
   board.nodes.push(node);
   await board.save();
