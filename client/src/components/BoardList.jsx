@@ -3,6 +3,7 @@ import { useAuth } from "../context/auth.js";
 import { api } from "../api/client.js";
 import { useToast } from "../context/toast.js";
 import { useInfiniteNodes } from "../hooks/useInfiniteNodes.js";
+import Backdrop from "./Backdrop.jsx";
 import BoardHeader from "./BoardHeader.jsx";
 import ListItem from "./ListItem.jsx";
 import NodeFormModal from "./NodeFormModal.jsx";
@@ -82,15 +83,16 @@ export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas 
   }, [items]);
 
   return (
-    <div className="board-page">
+    <div className="board-page chai-page">
+      <Backdrop />
       <BoardHeader name={name} view={view} onViewChange={onViewChange}>
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+        <button className="btn btn-primary btn-plain" onClick={() => setShowAddModal(true)}>
           + Add
         </button>
       </BoardHeader>
 
       {status === "error" && items.length === 0 ? (
-        <div className="page-center auth-error">{error}</div>
+        <PageError message={error} />
       ) : (
         <div className="board-list">
           {namedSections.length > 1 && (

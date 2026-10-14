@@ -75,7 +75,7 @@ export default function NodeFormModal({
             ))}
           </div>
           <div className="modal-actions">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>
+            <button type="button" className="btn btn-outline" onClick={onClose}>
               Cancel
             </button>
           </div>
@@ -159,14 +159,14 @@ export default function NodeFormModal({
 
         <div className="modal-actions">
           {!isEdit && (
-            <button type="button" className="btn btn-ghost" onClick={() => setType(null)}>
+            <button type="button" className="btn btn-outline" onClick={() => setType(null)}>
               Back
             </button>
           )}
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <button type="submit" className="btn btn-primary btn-plain" disabled={submitting}>
             {isEdit ? (submitting ? "Saving..." : "Save") : submitting ? "Adding..." : "Add"}
           </button>
         </div>

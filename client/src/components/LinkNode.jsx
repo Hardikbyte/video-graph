@@ -3,20 +3,24 @@ import NodeShell from "./NodeShell.jsx";
 import NodeNotes from "./NodeNotes.jsx";
 import { hostnameOf, normalizeUrl } from "../lib/url.js";
 import { useLowDetail } from "../hooks/useLowDetail.js";
+import { useClickGuard } from "../hooks/useClickGuard.js";
 
 function LinkNode({ id, data }) {
   const { url, title, notes } = data;
   const lowDetail = useLowDetail();
+  const clickGuard = useClickGuard();
   const safeUrl = normalizeUrl(url);
   const host = hostnameOf(safeUrl);
 
   return (
     <NodeShell>
       <a
-        className="link-node-card nodrag"
+        className="link-node-card"
         href={safeUrl || undefined}
         target="_blank"
         rel="noopener noreferrer"
+        draggable={false}
+        {...clickGuard}
       >
         {lowDetail ? (
           <span className="link-node-favicon" />
@@ -26,6 +30,7 @@ function LinkNode({ id, data }) {
             src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`}
             alt=""
             loading="lazy"
+            draggable={false}
             referrerPolicy="no-referrer"
           />
         )}

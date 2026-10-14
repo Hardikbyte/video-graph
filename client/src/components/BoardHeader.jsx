@@ -1,29 +1,25 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import Segmented from "./Segmented.jsx";
+import SiteHeader from "./SiteHeader.jsx";
+import ThemeSwitcher from "./ThemeSwitcher.jsx";
+
+const VIEWS = [
+  { value: "canvas", label: "Canvas" },
+  { value: "list", label: "List" },
+];
 
 export default function BoardHeader({ name, view, onViewChange, children }) {
-  const navigate = useNavigate();
-
   return (
-    <header className="topbar board-header">
-      <button className="btn btn-ghost" onClick={() => navigate("/boards")} aria-label="Back to boards">
+    <SiteHeader solid className="board-header">
+      <Link className="btn btn-ghost" to="/boards" aria-label="Back to boards">
         ←<span className="hide-mobile"> Boards</span>
-      </button>
+      </Link>
       <h1 className="board-title">{name}</h1>
-      <div className="view-toggle" role="group" aria-label="Board view">
-        <button
-          className={`view-toggle-btn${view === "canvas" ? " view-toggle-active" : ""}`}
-          onClick={() => onViewChange("canvas")}
-        >
-          Canvas
-        </button>
-        <button
-          className={`view-toggle-btn${view === "list" ? " view-toggle-active" : ""}`}
-          onClick={() => onViewChange("list")}
-        >
-          List
-        </button>
+      <Segmented options={VIEWS} value={view} onChange={onViewChange} label="Board view" />
+      <div className="site-header-end">
+        {children}
+        <ThemeSwitcher />
       </div>
-      <div className="topbar-right">{children}</div>
-    </header>
+    </SiteHeader>
   );
 }

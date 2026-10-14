@@ -1,0 +1,366 @@
+/* ChaiUI tokens, ported to plain CSS. Dark is the default, light is [data-theme="light"].
+   Orange is only for the logo dot, link hover and the active segmented fill. */
+
+:root {
+  color-scheme: dark;
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Onest", ui-sans-serif, system-ui, sans-serif;
+
+  --radius: 0.625rem;
+  --radius-card: calc(var(--radius) + 4px);
+
+  --bg: #0a0a0a;
+  --bg-elevated: #111111;
+  --surface: #141414; /* opaque card fill, used where blur would be too costly (canvas nodes) */
+  --surface-hover: #1c1c1c;
+  --text: #fafafa;
+  --text-muted: #a3a3a3;
+  --border: rgba(255, 247, 237, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --ring: #737373;
+
+  --accent: #ffedd5; /* the cream highlight, also the quiet active state */
+  --accent-hover: #ffffff;
+  --highlight: #ffedd5;
+  --brand: #ff9a3c; /* link hover only */
+  --logo-orange: #ff7d0c;
+
+  --card-edge: rgba(255, 247, 237, 0.15);
+  --card-edge-hover: rgba(255, 247, 237, 0.3);
+  --card-fill: rgba(0, 0, 0, 0.1);
+
+  --solid-bg: #ffffff; /* the one main button per screen */
+  --solid-fg: #0a0a0a;
+  --solid-hover: #e5e5e5;
+  --soft-bg: #e5e5e5; /* buttons on cards */
+  --soft-fg: #171717;
+
+  --seg-active-bg: rgba(124, 45, 18, 0.4); /* the one allowed dark-brown fill */
+  --seg-active-fg: #ffedd5;
+
+  --danger: #ff6467;
+  --danger-fill: #dc2626;
+  --success: #6fdc9a;
+
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --arrow-up-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h10v10'/%3E%3Cpath d='M7 17 17 7'/%3E%3C/svg%3E");
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --bg-elevated: #fafafa;
+  --surface: #ffffff;
+  --surface-hover: #f5f5f5;
+  --text: #0a0a0a;
+  --text-muted: #525252;
+  --border: rgba(120, 53, 15, 0.14);
+  --border-strong: rgba(10, 10, 10, 0.16);
+  --ring: #a3a3a3;
+
+  --accent: #854d0e;
+  --accent-hover: #0a0a0a;
+  --highlight: #854d0e;
+  --brand: #ea7a0b;
+
+  --card-edge: rgba(120, 53, 15, 0.15);
+  --card-edge-hover: rgba(120, 53, 15, 0.28);
+  --card-fill: rgba(255, 255, 255, 0.7);
+
+  --solid-bg: #171717;
+  --solid-fg: #ffffff;
+  --solid-hover: #000000;
+  --soft-bg: #171717;
+  --soft-fg: #fafafa;
+
+  --seg-active-bg: #ffedd5;
+  --seg-active-fg: #7c2d12;
+
+  --danger: #dc2626;
+  --success: #15803d;
+
+  --scrim: rgba(10, 10, 10, 0.4);
+}
+
+@keyframes chai-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chai-bounce {
+  0%,
+  100% {
+    transform: translateY(-6%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: none;
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* ---------- Base ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--brand);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(255, 237, 213, 0.25);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.hide-mobile {
+  display: inline;
+}
+
+/* The highlight phrase: one per paragraph. */
+.highlight {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-transform: capitalize;
+  color: var(--highlight);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Solid: the one main action on a screen, with the asymmetric corners and an arrow. */
+.btn-primary {
+  background: var(--solid-bg);
+  color: var(--solid-fg);
+  border-radius: 0 var(--radius) 0 var(--radius);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--solid-hover);
+  color: var(--solid-fg);
+}
+
+.btn-primary::after {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  margin-left: -0.25rem;
+  background: currentColor;
+  -webkit-mask: var(--arrow-up-right) center / contain no-repeat;
+  mask: var(--arrow-up-right) center / contain no-repeat;
+}
+
+.btn-primary.btn-plain::after {
+  display: none;
+}
+
+/* Outline: the mirrored corners, placed beside the solid button. */
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border-strong);
+  border-radius: var(--radius) 0 var(--radius) 0;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* Ghost: small quiet buttons in toolbars and panels. */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+/* A ghost button that warns on hover (text only, never a fill). */
+.btn-danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+/* Soft: the default button on cards and toasts. */
+.btn-soft {
+  background: var(--soft-bg);
+  color: var(--soft-fg);
+  font-weight: 600;
+}
+
+.btn-soft:hover:not(:disabled) {
+  opacity: 0.9;
+  color: var(--soft-fg);
+}
+
+/* Red fill: only inside a confirm dialog. */
+.btn-destructive {
+  background: var(--danger-fill);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btn-destructive:hover:not(:disabled) {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+/* ---------- The warm hairline card: no shadow, faint fill, a little blur ---------- */
+
+.board-card,
+.list-item,
+.auth-card,
+.modal-card,
+.selection-panel,
+.toast,
+.type-card {
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius-card);
+  background: var(--card-fill);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow: none;
+  transition: border-color 0.3s ease, opacity 0.3s ease, background 0.3s ease;
+}
+
+.board-card:hover,
+.list-item:hover,
+.type-card:hover {
+  border-color: var(--card-edge-hover);
+}
+
+/* Overlays need an opaque-enough fill to stay readable over any content. */
+.modal-card,
+.selection-panel,
+.toast {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+@media (min-width: 640px) {
+  .board-card,
+  .list-item {
+    opacity: 0.9;
+  }
+
+  .board-card:hover,
+  .board-card:focus-within,
+  .list-item:hover,
+  .list-item:focus-within {
+    opacity: 1;
+  }
+}
+
+/* ---------- Page background: the hexagon glow ---------- */
+
+.chai-page {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+
+.chai-backdrop {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: -50;
+  width: 2842px;
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+
+[data-theme="light"] .chai-backdrop {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

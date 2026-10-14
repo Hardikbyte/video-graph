@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.js";
 import { api } from "../api/client.js";
 import { useToast } from "../context/toast.js";
+import Backdrop from "../components/Backdrop.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import Logo from "../components/Logo.jsx";
+import SiteHeader from "../components/SiteHeader.jsx";
+import ThemeSwitcher from "../components/ThemeSwitcher.jsx";
 
 export default function Boards() {
   const { token, username, logout } = useAuth();
@@ -13,6 +18,8 @@ export default function Boards() {
   const [newName, setNewName] = useState("");
   const [nameError, setNameError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null); // { board, total }
+  const [deleting, setDeleting] = useState(false);
   const nameInput = useRef(null);
   const creatingRef = useRef(false); // set at once, state alone is too slow for a double click
 
@@ -56,33 +63,61 @@ export default function Boards() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm("Delete this board? This cannot be undone.")) return;
+  // Ask first, and say how many items go with the board.
+  async function askToDelete(board) {
+    setPendingDelete({ board, total: null });
     try {
-      await api.deleteBoard(token, id);
-      setBoards((prev) => prev.filter((b) => b._id !== id));
-    } catch (err) {
-      toast.error(err, { title: "Could not delete the board" });
+      const page = await api.getNodesPage(token, board._id, { limit: 1 });
+      setPendingDelete((current) => (current?.board._id === board._id ? { board, total: page.total } : current));
+    } catch {
+      /* the dialog still works without the count */
     }
   }
 
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await api.deleteBoard(token, pendingDelete.board._id);
+      setBoards((prev) => prev.filter((b) => b._id !== pendingDelete.board._id));
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err, { title: "Could not delete the board" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const deleteTotal = pendingDelete?.total;
+
   return (
-    <div className="page">
-      <header className="topbar">
-        <h1>VideoGraph</h1>
-        <div className="topbar-right">
+    <div className="page chai-page">
+      <Backdrop />
+      <SiteHeader>
+        <Logo />
+        <div className="site-header-end">
           <span className="username">{username}</span>
+          <ThemeSwitcher />
           <button className="btn btn-ghost" onClick={logout}>
             Log out
           </button>
         </div>
-      </header>
+      </SiteHeader>
 
       <main className="content">
+        <section className="page-intro">
+          <h1 className="page-title">Your boards</h1>
+          <p className="page-lead">
+            Keep videos, notes and links together on <span className="highlight">visual boards</span> you can arrange
+            and share.
+          </p>
+        </section>
+
         <form className="new-board-form" onSubmit={handleCreate}>
           <input
             ref={nameInput}
             placeholder="New board name..."
+            aria-label="New board name"
             value={newName}
             maxLength={100}
             aria-invalid={nameError ? "true" : undefined}
@@ -102,24 +137,22 @@ export default function Boards() {
         </form>
 
         {loading ? (
-          <p className="muted">Loading boards...</p>
+          <p className="muted page-status">Loading boards...</p>
         ) : boards.length === 0 ? (
-          <p className="muted">No boards yet — create one above to get started.</p>
+          <p className="muted page-status">No boards yet. Create one above to get started.</p>
         ) : (
           <div className="board-grid">
             {boards.map((board) => (
               <div className="board-card" key={board._id} onClick={() => navigate(`/boards/${board._id}`)}>
                 <div className="board-card-title">{board.name}</div>
-                <div className="board-card-meta">
-                  Updated {new Date(board.updatedAt).toLocaleString()}
-                </div>
+                <div className="board-card-meta">Updated {new Date(board.updatedAt).toLocaleString()}</div>
                 <button
                   className="board-card-delete"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(board._id);
+                    askToDelete(board);
                   }}
-                  aria-label="Delete board"
+                  aria-label={`Delete ${board.name}`}
                 >
                   ×
                 </button>
@@ -128,6 +161,21 @@ export default function Boards() {
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete ? `Delete "${pendingDelete.board.name}"?` : ""}
+        confirmLabel="Delete board"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => !deleting && setPendingDelete(null)}
+      >
+        This permanently deletes the board
+        {typeof deleteTotal === "number"
+          ? ` and its ${deleteTotal} ${deleteTotal === 1 ? "item" : "items"}`
+          : " and everything on it"}
+        . This cannot be undone.
+      </ConfirmDialog>
     </div>
   );
 }

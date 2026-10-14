@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.js";
+import Backdrop from "../components/Backdrop.jsx";
+import Logo from "../components/Logo.jsx";
+import ThemeSwitcher from "../components/ThemeSwitcher.jsx";
 
 export default function Login() {
   const { login } = useAuth();
@@ -25,10 +28,14 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page chai-page">
+      <Backdrop />
       <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>VideoGraph</h1>
-        <p className="auth-subtitle">Sign in to organize your video boards</p>
+        <Logo asLink={false} />
+        <h1>Welcome back</h1>
+        <p className="auth-subtitle">
+          Sign in to organize your videos, notes and links on <span className="highlight">visual boards</span>.
+        </p>
 
         <label className="field">
           <span>Username</span>
@@ -58,6 +65,9 @@ export default function Login() {
           {loading ? "Signing in..." : "Sign in"}
         </button>
       </form>
+      <div className="auth-theme">
+        <ThemeSwitcher />
+      </div>
     </div>
   );
 }

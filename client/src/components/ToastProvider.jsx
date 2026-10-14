@@ -37,7 +37,7 @@ function Toast({ toast, onDismiss }) {
         <div className="toast-actions">
           {toast.retry && (
             <button
-              className="btn btn-primary"
+              className="btn btn-soft"
               onClick={() => {
                 onDismiss();
                 toast.retry();
