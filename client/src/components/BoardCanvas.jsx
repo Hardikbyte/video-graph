@@ -18,9 +18,12 @@ import { api, REQUIRED_API_VERSION } from "../api/client.js";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { useBoardSync } from "../hooks/useBoardSync.js";
 import { useToast } from "../context/toast.js";
+import { useTheme } from "../context/theme.js";
 import { DEFAULT_EDGE_COLOR } from "../lib/edgeStyle.js";
 import { extractYoutubeId, youtubeWatchUrl } from "../lib/youtube.js";
 import BoardHeader from "./BoardHeader.jsx";
+import ConfirmDialog from "./ConfirmDialog.jsx";
+import PageError from "./PageError.jsx";
 import SelectionPanel from "./SelectionPanel.jsx";
 import VideoNode from "./VideoNode.jsx";
 import FlowEdge from "./FlowEdge.jsx";
@@ -34,7 +37,7 @@ const edgeTypes = { flow: FlowEdge };
 
 // Above this many nodes, "fit everything" would be unreadably small.
 const BIG_BOARD_NODES = 40;
-const BIG_BOARD_VIEWPORT = { x: 40, y: 90, zoom: 0.6 };
+const BIG_BOARD_VIEWPORT = { x: 72, y: 90, zoom: 0.6 };
 
 function toFlowNodes(boardNodes) {
   return boardNodes.map((n) => ({
@@ -85,6 +88,8 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
   const { setCenter, setViewport } = useReactFlow();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const toast = useToast();
+  const { theme } = useTheme();
+  const [pendingNodeDeleteId, setPendingNodeDeleteId] = useState(null);
 
   const [board, setBoard] = useState(null);
   const [nodes, setNodes] = useState([]);
@@ -288,6 +293,14 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
 
   const editingNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
 
+  // The Delete button asks first and says what goes with the node.
+  const pendingDeleteNode = pendingNodeDeleteId ? nodes.find((n) => n.id === pendingNodeDeleteId) : null;
+  const pendingDeleteConnections = pendingDeleteNode
+    ? edges.filter((e) => e.source === pendingDeleteNode.id || e.target === pendingDeleteNode.id).length
+    : 0;
+  const pendingDeleteLabel =
+    pendingDeleteNode?.data.title || pendingDeleteNode?.data.text?.slice(0, 40) || "this item";
+
   // Exactly one selected node or one selected edge drives the bottom panel.
   const { selectedNode, selectedEdge } = useMemo(() => {
     const selNodes = nodes.filter((n) => n.selected);
@@ -343,7 +356,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
   }
 
   if (error && !board) {
-    return <div className="page-center auth-error">{error}</div>;
+    return <PageError message={error} />;
   }
 
   return (
@@ -376,7 +389,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
             {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : ""}
           </span>
         )}
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+        <button className="btn btn-primary btn-plain" onClick={() => setShowAddModal(true)}>
           + Add
         </button>
       </BoardHeader>
@@ -392,6 +405,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
             onInit={handleInit}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
+            colorMode={theme}
             fitView={!isBig && !focusId}
             defaultViewport={isBig ? BIG_BOARD_VIEWPORT : undefined}
             minZoom={0.1}
@@ -408,10 +422,27 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
         node={selectedNode}
         edge={selectedEdge}
         onNodeEdit={onNodeEdit}
-        onNodeDelete={onNodeDelete}
+        onNodeDelete={setPendingNodeDeleteId}
         onEdgeUpdate={onEdgeUpdate}
         onEdgeDelete={onEdgeDelete}
       />
+
+      <ConfirmDialog
+        open={!!pendingDeleteNode}
+        title={`Delete "${pendingDeleteLabel}"?`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          onNodeDelete(pendingNodeDeleteId);
+          setPendingNodeDeleteId(null);
+        }}
+        onCancel={() => setPendingNodeDeleteId(null)}
+      >
+        This removes the item from the board
+        {pendingDeleteConnections > 0
+          ? ` and its ${pendingDeleteConnections} ${pendingDeleteConnections === 1 ? "connection" : "connections"}`
+          : ""}
+        . This cannot be undone.
+      </ConfirmDialog>
 
       {showAddModal && (
         <NodeFormModal

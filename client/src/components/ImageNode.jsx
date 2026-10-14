@@ -27,6 +27,7 @@ function ImageNode({ id, data }) {
             alt={title || "Image"}
             referrerPolicy="no-referrer"
             loading="lazy"
+            draggable={false}
             onError={() => setFailed(true)}
           />
         )}
