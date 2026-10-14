@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAuth } from "../context/auth.js";
 import { api } from "../api/client.js";
+import { useToast } from "../context/toast.js";
 
 export default function Boards() {
   const { token, username, logout } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [boards, setBoards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
-  const [error, setError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -17,7 +18,7 @@ export default function Boards() {
       const data = await api.listBoards(token);
       setBoards(data);
     } catch (err) {
-      setError(err.message);
+      toast.error(err, { title: "Could not load your boards", retry: load });
     } finally {
       setLoading(false);
     }
@@ -36,7 +37,7 @@ export default function Boards() {
       setNewName("");
       navigate(`/boards/${board._id}`);
     } catch (err) {
-      setError(err.message);
+      toast.error(err, { title: "Could not create the board" });
     }
   }
 
@@ -46,7 +47,7 @@ export default function Boards() {
       await api.deleteBoard(token, id);
       setBoards((prev) => prev.filter((b) => b._id !== id));
     } catch (err) {
-      setError(err.message);
+      toast.error(err, { title: "Could not delete the board" });
     }
   }
 
@@ -73,8 +74,6 @@ export default function Boards() {
             Create board
           </button>
         </form>
-
-        {error && <div className="auth-error">{error}</div>}
 
         {loading ? (
           <p className="muted">Loading boards...</p>

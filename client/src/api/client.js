@@ -1,26 +1,39 @@
+import { buildApiError } from "../lib/apiError.js";
+
+// Bump together with API_VERSION in the server when the routes change.
+export const REQUIRED_API_VERSION = 2;
+
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, keepalive } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
+  const url = `${API_BASE}${path}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      keepalive,
+    });
+  } catch (networkError) {
+    throw buildApiError({ method, url, path, networkError });
+  }
 
   if (res.status === 204) return null;
 
-  const data = await res.json().catch(() => null);
-
+  const bodyText = await res.text();
   if (!res.ok) {
-    const error = new Error(data?.error || "Request failed");
-    error.status = res.status;
-    throw error;
+    throw buildApiError({ method, url, path, status: res.status, bodyText });
   }
 
-  return data;
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return null;
+  }
 }
 
 export const api = {
@@ -37,12 +50,37 @@ export const api = {
   saveBoard: (token, id, { nodes, edges, name }) =>
     request(`/boards/${id}`, { method: "PUT", body: { nodes, edges, name }, token }),
 
+  health: () => request("/health"),
+
+  getNodesPage: (token, id, { cursor, limit } = {}) => {
+    const params = new URLSearchParams();
+    if (cursor) params.set("cursor", cursor);
+    if (limit) params.set("limit", String(limit));
+    const query = params.toString();
+    return request(`/boards/${id}/nodes${query ? `?${query}` : ""}`, { token });
+  },
+
   deleteBoard: (token, id) => request(`/boards/${id}`, { method: "DELETE", token }),
 
-  addNode: (token, id, { urlOrId, title, notes, position }) =>
-    request(`/boards/${id}/nodes`, {
-      method: "POST",
-      body: { urlOrId, title, notes, position },
-      token,
-    }),
+  addNode: (token, id, node) =>
+    request(`/boards/${id}/nodes`, { method: "POST", body: node, token }),
+
+  // Granular writes: each one touches only the elements that changed.
+  patchLayout: (token, id, positions, opts) =>
+    request(`/boards/${id}/layout`, { method: "PATCH", body: { positions }, token, ...opts }),
+
+  patchNode: (token, id, nodeId, patch, opts) =>
+    request(`/boards/${id}/nodes/${nodeId}`, { method: "PATCH", body: patch, token, ...opts }),
+
+  deleteNode: (token, id, nodeId, opts) =>
+    request(`/boards/${id}/nodes/${nodeId}`, { method: "DELETE", token, ...opts }),
+
+  createEdge: (token, id, edge, opts) =>
+    request(`/boards/${id}/edges`, { method: "POST", body: edge, token, ...opts }),
+
+  patchEdge: (token, id, edgeId, patch, opts) =>
+    request(`/boards/${id}/edges/${edgeId}`, { method: "PATCH", body: patch, token, ...opts }),
+
+  deleteEdge: (token, id, edgeId, opts) =>
+    request(`/boards/${id}/edges/${edgeId}`, { method: "DELETE", token, ...opts }),
 };
