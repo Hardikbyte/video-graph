@@ -12,11 +12,16 @@ const INITIAL_STATE = {
 };
 
 // Loads a board's nodes in chunks using the server's cursor paging.
-export function useInfiniteNodes(token, boardId) {
+export function useInfiniteNodes(token, boardId, { onError } = {}) {
   const [state, setState] = useState(INITIAL_STATE);
   const itemsRef = useRef([]);
   const cursorRef = useRef(null);
   const pending = useRef(null);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   const load = useCallback(
     (cursor) => {
@@ -41,6 +46,7 @@ export function useInfiniteNodes(token, boardId) {
           }));
         } catch (err) {
           setState((prev) => ({ ...prev, status: "error", error: err.message }));
+          onErrorRef.current?.(err);
         } finally {
           pending.current = null;
         }

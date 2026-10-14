@@ -370,6 +370,7 @@ button {
 }
 
 .video-node-thumb-btn {
+  display: block;
   position: relative;
   width: 100%;
   height: 100%;
@@ -400,12 +401,6 @@ button {
 
 .video-node-thumb-btn:hover .video-node-play {
   background: rgba(0, 0, 0, 0.4);
-}
-
-.video-node-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
 }
 
 .node-title {
@@ -700,6 +695,121 @@ button {
   pointer-events: all;
 }
 
+/* Toasts */
+.toast-viewport {
+  position: fixed;
+  top: 72px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(440px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.toast-error {
+  border-left-color: var(--danger);
+}
+
+.toast-success {
+  border-left-color: #6fdc9a;
+}
+
+.toast-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toast-title {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.toast-count {
+  padding: 0.05rem 0.4rem;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.toast-close {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.toast-message {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.toast-hint {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.toast-details {
+  max-height: 180px;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.6rem;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.toast-actions .btn {
+  min-height: 34px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.save-status-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -926,6 +1036,13 @@ button {
 @media (max-width: 768px) {
   .hide-mobile {
     display: none;
+  }
+
+  .toast-viewport {
+    top: 112px;
+    right: 12px;
+    left: 12px;
+    width: auto;
   }
 
   .topbar {

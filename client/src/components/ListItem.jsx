@@ -1,28 +1,22 @@
 import { memo, useState } from "react";
 import { useInView } from "../hooks/useInView.js";
 import { hostnameOf, normalizeUrl } from "../lib/url.js";
+import { youtubeWatchUrl } from "../lib/youtube.js";
 
 const IN_VIEW_OPTIONS = { rootMargin: "300px" };
 
 function VideoMedia({ youtubeId, title }) {
   const [ref, inView] = useInView(IN_VIEW_OPTIONS);
-  const [playing, setPlaying] = useState(false);
 
   return (
     <div className="list-media" ref={ref}>
-      {playing ? (
-        <iframe
-          className="video-node-iframe"
-          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
-          title={title || youtubeId}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      ) : inView ? (
-        <button
+      {inView ? (
+        <a
           className="video-node-thumb-btn"
-          onClick={() => setPlaying(true)}
-          aria-label="Play video"
+          href={youtubeWatchUrl(youtubeId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${title || "video"} on YouTube`}
         >
           <img
             src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
@@ -30,7 +24,7 @@ function VideoMedia({ youtubeId, title }) {
             loading="lazy"
           />
           <span className="video-node-play">▶</span>
-        </button>
+        </a>
       ) : (
         <div className="video-node-placeholder" />
       )}

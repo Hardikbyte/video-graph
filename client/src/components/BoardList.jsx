@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../context/auth.js";
 import { api } from "../api/client.js";
+import { useToast } from "../context/toast.js";
 import { useInfiniteNodes } from "../hooks/useInfiniteNodes.js";
 import BoardHeader from "./BoardHeader.jsx";
 import ListItem from "./ListItem.jsx";
@@ -8,8 +9,17 @@ import NodeFormModal from "./NodeFormModal.jsx";
 
 export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas }) {
   const { token } = useAuth();
+  const toast = useToast();
+  const retryRef = useRef(null);
   const { items, status, error, name, total, sections, nextCursor, loadMore, loadUntil, reload } =
-    useInfiniteNodes(token, boardId);
+    useInfiniteNodes(token, boardId, {
+      onError: (err) =>
+        toast.error(err, { title: "Could not load items", key: "list-load", retry: () => retryRef.current?.() }),
+    });
+
+  useEffect(() => {
+    retryRef.current = () => (items.length ? loadMore() : reload());
+  }, [items.length, loadMore, reload]);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const sentinelRef = useRef(null);

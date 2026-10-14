@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "seed": "node src/scripts/seedUser.js",
     "seed:system-design": "node src/scripts/seedSystemDesign.js",
-    "seed:boards": "node src/scripts/seedBoards.js"
+    "seed:boards": "node src/scripts/seedBoards.js",
+    "audit:boards": "node src/scripts/auditBoards.js",
+    "migrate:boards": "node src/scripts/migrateBoards.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -25,3 +25,8 @@ export function extractYoutubeId(input) {
     return null;
   }
 }
+
+// Where to watch a video. The watch URL also plays shorts.
+export function youtubeWatchUrl(id) {
+  return `https://www.youtube.com/watch?v=${id}`;
+}

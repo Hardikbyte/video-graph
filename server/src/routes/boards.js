@@ -14,7 +14,9 @@ const asyncRoute = (handler) => (req, res, next) =>
       return res.status(400).json({ error: err.message });
     }
     console.error(err);
-    return res.status(500).json({ error: "Server error" });
+    // Outside production, say what really went wrong so the app can show it.
+    const detail = process.env.NODE_ENV === "production" ? undefined : `${err.name}: ${err.message}`;
+    return res.status(500).json({ error: "Server error", detail });
   });
 
 for (const method of ["get", "post", "put", "patch", "delete"]) {

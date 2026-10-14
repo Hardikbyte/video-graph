@@ -13,7 +13,10 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/boards", boardsRoutes);
 
-app.get("/api/health", (req, res) => res.json({ ok: true }));
+// Bump API_VERSION together with REQUIRED_API_VERSION in client/src/api/client.js
+// whenever the routes the client depends on change.
+const API_VERSION = 2;
+app.get("/api/health", (req, res) => res.json({ ok: true, api: API_VERSION }));
 
 const port = process.env.PORT || 5000;
 

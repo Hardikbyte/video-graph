@@ -1,4 +1,5 @@
 import { normalizeUrl } from "../lib/url.js";
+import { youtubeWatchUrl } from "../lib/youtube.js";
 import { DEFAULT_EDGE_COLOR, EDGE_PRESET_COLORS } from "../lib/edgeStyle.js";
 
 const TYPE_LABELS = { video: "Video", text: "Text", image: "Image", link: "Link" };
@@ -9,7 +10,7 @@ function nodeSummary(node) {
 }
 
 function nodeHref(node) {
-  if (node.type === "video") return `https://youtu.be/${node.data.youtubeId}`;
+  if (node.type === "video") return youtubeWatchUrl(node.data.youtubeId);
   if (node.type === "link" || node.type === "image") return normalizeUrl(node.data.url);
   return null;
 }

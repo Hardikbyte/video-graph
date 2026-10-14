@@ -14,11 +14,12 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useAuth } from "../context/auth.js";
 import { NodeActionsContext } from "../context/NodeActionsContext.jsx";
-import { api } from "../api/client.js";
+import { api, REQUIRED_API_VERSION } from "../api/client.js";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { useBoardSync } from "../hooks/useBoardSync.js";
+import { useToast } from "../context/toast.js";
 import { DEFAULT_EDGE_COLOR } from "../lib/edgeStyle.js";
-import { extractYoutubeId } from "../lib/youtube.js";
+import { extractYoutubeId, youtubeWatchUrl } from "../lib/youtube.js";
 import BoardHeader from "./BoardHeader.jsx";
 import SelectionPanel from "./SelectionPanel.jsx";
 import VideoNode from "./VideoNode.jsx";
@@ -83,6 +84,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
   const { token } = useAuth();
   const { setCenter, setViewport } = useReactFlow();
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const toast = useToast();
 
   const [board, setBoard] = useState(null);
   const [nodes, setNodes] = useState([]);
@@ -94,15 +96,26 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
 
   // Each change is queued by entity and sent on its own (a moved node sends only its
   // new position), instead of re-sending the whole board.
+  const handleSaveError = useCallback(
+    ({ error, description, retry }) =>
+      toast.error(error, { title: "Could not save changes", context: description, key: "save-failed", retry }),
+    [toast]
+  );
+  const handleSaveRecovered = useCallback(() => {
+    toast.dismiss("save-failed");
+    toast.success("All changes saved");
+  }, [toast]);
+
   const {
     status: saveStatus,
+    lastError: lastSaveError,
     queuePosition,
     queueNodePatch,
     queueNodeDelete,
     queueEdgeCreate,
     queueEdgePatch,
     queueEdgeDelete,
-  } = useBoardSync(token, boardId);
+  } = useBoardSync(token, boardId, { onError: handleSaveError, onRecovered: handleSaveRecovered });
 
   const latest = useRef({ nodes: [], edges: [] });
 
@@ -122,7 +135,10 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
         );
         setEdges(toFlowEdges(data.edges));
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        setError(err.message);
+        toast.error(err, { title: "Could not load the board" });
+      })
       .finally(() => setLoading(false));
     return () => {
       cancelled = true;
@@ -130,6 +146,25 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
     // focusId only matters for the first load
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, token]);
+
+  // An old server answers the new save requests with 404, which looks like a bug.
+  // Say so up front instead.
+  useEffect(() => {
+    api
+      .health()
+      .then((info) => {
+        if ((info?.api ?? 0) < REQUIRED_API_VERSION) {
+          toast.show({
+            type: "error",
+            key: "old-server",
+            title: "The server is out of date",
+            message: "Moving and editing items will not save until the server is restarted.",
+            hint: "Stop the server and run `npm start` in the server folder, then reload this page.",
+          });
+        }
+      })
+      .catch(() => {}); // an unreachable server is reported by the board load itself
+  }, [toast]);
 
   const onNodesChange = useCallback(
     (changes) => {
@@ -329,15 +364,18 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
             ))}
           </select>
         )}
-        <span className={`save-status save-status-${saveStatus}`}>
-          {saveStatus === "saving"
-            ? "Saving..."
-            : saveStatus === "saved"
-              ? "Saved"
-              : saveStatus === "error"
-                ? "Save failed"
-                : ""}
-        </span>
+        {saveStatus === "error" && lastSaveError ? (
+          <button
+            className="save-status save-status-error save-status-button"
+            onClick={() => handleSaveError(lastSaveError)}
+          >
+            Save failed: details
+          </button>
+        ) : (
+          <span className={`save-status save-status-${saveStatus}`}>
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : ""}
+          </span>
+        )}
         <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
           + Add
         </button>
@@ -391,7 +429,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
             type: editingNode.type,
             url:
               editingNode.type === "video"
-                ? `https://youtu.be/${editingNode.data.youtubeId}`
+                ? youtubeWatchUrl(editingNode.data.youtubeId)
                 : editingNode.data.url,
             title: editingNode.data.title,
             notes: editingNode.data.notes,
