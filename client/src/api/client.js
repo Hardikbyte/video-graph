@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, keepalive } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -8,6 +8,7 @@ async function request(path, { method = "GET", body, token } = {}) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    keepalive,
   });
 
   if (res.status === 204) return null;
@@ -49,4 +50,23 @@ export const api = {
 
   addNode: (token, id, node) =>
     request(`/boards/${id}/nodes`, { method: "POST", body: node, token }),
+
+  // Granular writes: each one touches only the elements that changed.
+  patchLayout: (token, id, positions, opts) =>
+    request(`/boards/${id}/layout`, { method: "PATCH", body: { positions }, token, ...opts }),
+
+  patchNode: (token, id, nodeId, patch, opts) =>
+    request(`/boards/${id}/nodes/${nodeId}`, { method: "PATCH", body: patch, token, ...opts }),
+
+  deleteNode: (token, id, nodeId, opts) =>
+    request(`/boards/${id}/nodes/${nodeId}`, { method: "DELETE", token, ...opts }),
+
+  createEdge: (token, id, edge, opts) =>
+    request(`/boards/${id}/edges`, { method: "POST", body: edge, token, ...opts }),
+
+  patchEdge: (token, id, edgeId, patch, opts) =>
+    request(`/boards/${id}/edges/${edgeId}`, { method: "PATCH", body: patch, token, ...opts }),
+
+  deleteEdge: (token, id, edgeId, opts) =>
+    request(`/boards/${id}/edges/${edgeId}`, { method: "DELETE", token, ...opts }),
 };

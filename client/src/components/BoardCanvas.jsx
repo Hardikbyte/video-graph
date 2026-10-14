@@ -16,6 +16,7 @@ import { useAuth } from "../context/auth.js";
 import { NodeActionsContext } from "../context/NodeActionsContext.jsx";
 import { api } from "../api/client.js";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useBoardSync } from "../hooks/useBoardSync.js";
 import { DEFAULT_EDGE_COLOR } from "../lib/edgeStyle.js";
 import { extractYoutubeId } from "../lib/youtube.js";
 import BoardHeader from "./BoardHeader.jsx";
@@ -33,34 +34,6 @@ const edgeTypes = { flow: FlowEdge };
 // Above this many nodes, "fit everything" would be unreadably small.
 const BIG_BOARD_NODES = 40;
 const BIG_BOARD_VIEWPORT = { x: 40, y: 90, zoom: 0.6 };
-
-function serializeNode(n) {
-  return {
-    id: n.id,
-    type: n.type,
-    youtubeId: n.type === "video" ? n.data.youtubeId : "",
-    text: n.data.text || "",
-    url: n.data.url || "",
-    section: n.data.section || "",
-    title: n.data.title || "",
-    notes: n.data.notes || "",
-    position: n.position,
-  };
-}
-
-function serializeEdge(e) {
-  return {
-    id: e.id,
-    source: e.source,
-    sourceHandle: e.sourceHandle,
-    target: e.target,
-    targetHandle: e.targetHandle,
-    color: e.data?.color || null,
-    label: e.data?.label || "",
-    lineStyle: e.data?.lineStyle || "solid",
-    arrow: !!e.data?.arrow,
-  };
-}
 
 function toFlowNodes(boardNodes) {
   return boardNodes.map((n) => ({
@@ -118,16 +91,20 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState(null);
-  const [saveStatus, setSaveStatus] = useState("idle");
-  const [revision, setRevision] = useState(0);
 
-  const saveTimeout = useRef(null);
-  const pendingSave = useRef(null);
+  // Each change is queued by entity and sent on its own (a moved node sends only its
+  // new position), instead of re-sending the whole board.
+  const {
+    status: saveStatus,
+    queuePosition,
+    queueNodePatch,
+    queueNodeDelete,
+    queueEdgeCreate,
+    queueEdgePatch,
+    queueEdgeDelete,
+  } = useBoardSync(token, boardId);
+
   const latest = useRef({ nodes: [], edges: [] });
-
-  // Only changes that need persisting bump the revision (not drags in progress,
-  // selection or measurement changes), so autosave does not run on every frame.
-  const markDirty = useCallback(() => setRevision((r) => r + 1), []);
 
   useEffect(() => {
     latest.current = { nodes, edges };
@@ -154,79 +131,55 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, token]);
 
-  const scheduleSave = useCallback(
-    (nextNodes, nextEdges) => {
-      if (saveTimeout.current) clearTimeout(saveTimeout.current);
-      setSaveStatus("saving");
-      const payload = {
-        nodes: nextNodes.map(serializeNode),
-        edges: nextEdges.map(serializeEdge),
-      };
-      pendingSave.current = payload;
-      saveTimeout.current = setTimeout(async () => {
-        pendingSave.current = null;
-        try {
-          await api.saveBoard(token, boardId, payload);
-          setSaveStatus("saved");
-        } catch (err) {
-          setSaveStatus("error");
-          setError(err.message);
-        }
-      }, 600);
-    },
-    [boardId, token]
-  );
-
-  useEffect(
-    () => () => {
-      if (saveTimeout.current) clearTimeout(saveTimeout.current);
-      if (pendingSave.current) {
-        api.saveBoard(token, boardId, pendingSave.current).catch(() => {});
-        pendingSave.current = null;
-      }
-    },
-    [boardId, token]
-  );
-
-  useEffect(() => {
-    if (revision === 0) return;
-    scheduleSave(latest.current.nodes, latest.current.edges);
-  }, [revision, scheduleSave]);
-
   const onNodesChange = useCallback(
     (changes) => {
       setNodes((nds) => applyNodeChanges(changes, nds));
-      if (changes.some((c) => c.type === "remove" || (c.type === "position" && c.dragging === false))) {
-        markDirty();
+      for (const change of changes) {
+        // Positions are sent when a drag ends, not on every tick of it.
+        if (change.type === "position" && change.dragging === false && change.position) {
+          queuePosition(change.id, change.position);
+        } else if (change.type === "remove") {
+          queueNodeDelete(change.id);
+        }
       }
     },
-    [markDirty]
+    [queuePosition, queueNodeDelete]
   );
 
   const onEdgesChange = useCallback(
     (changes) => {
       setEdges((eds) => applyEdgeChanges(changes, eds));
-      if (changes.some((c) => c.type === "remove")) markDirty();
+      for (const change of changes) {
+        if (change.type === "remove") queueEdgeDelete(change.id);
+      }
     },
-    [markDirty]
+    [queueEdgeDelete]
   );
 
   const onConnect = useCallback(
     (connection) => {
-      setEdges((eds) =>
-        addEdge(
-          {
-            ...connection,
-            id: crypto.randomUUID(),
-            type: "flow",
-            data: { color: null, label: "", lineStyle: "solid", arrow: false },
-          },
-          eds
-        )
+      const duplicate = latest.current.edges.some(
+        (e) =>
+          e.source === connection.source &&
+          e.target === connection.target &&
+          e.sourceHandle === connection.sourceHandle &&
+          e.targetHandle === connection.targetHandle
       );
-      markDirty();
+      if (duplicate) return;
+
+      const id = crypto.randomUUID();
+      const style = { color: null, label: "", lineStyle: "solid", arrow: false };
+      setEdges((eds) => addEdge({ ...connection, id, type: "flow", data: style }, eds));
+      queueEdgeCreate({
+        id,
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle ?? null,
+        targetHandle: connection.targetHandle ?? null,
+        ...style,
+      });
     },
-    [markDirty]
+    [queueEdgeCreate]
   );
 
   async function handleAddNode(payload) {
@@ -245,18 +198,18 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
       setNodes((nds) =>
         nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, notes } } : n))
       );
-      markDirty();
+      queueNodePatch(nodeId, { notes });
     },
-    [markDirty]
+    [queueNodePatch]
   );
 
   const onNodeDelete = useCallback(
     (nodeId) => {
       setNodes((nds) => nds.filter((n) => n.id !== nodeId));
       setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-      markDirty();
+      queueNodeDelete(nodeId);
     },
-    [markDirty]
+    [queueNodeDelete]
   );
 
   const onNodeEdit = useCallback((nodeId) => setEditingNodeId(nodeId), []);
@@ -268,17 +221,17 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
           e.id === edgeId ? withMarker({ ...e, data: { ...e.data, ...patch } }) : e
         )
       );
-      markDirty();
+      queueEdgePatch(edgeId, patch);
     },
-    [markDirty]
+    [queueEdgePatch]
   );
 
   const onEdgeDelete = useCallback(
     (edgeId) => {
       setEdges((eds) => eds.filter((e) => e.id !== edgeId));
-      markDirty();
+      queueEdgeDelete(edgeId);
     },
-    [markDirty]
+    [queueEdgeDelete]
   );
 
   const actions = useMemo(() => ({ onNoteChange }), [onNoteChange]);
@@ -295,7 +248,7 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
     setNodes((nds) =>
       nds.map((n) => (n.id === editingNodeId ? { ...n, data: { ...n.data, ...patch } } : n))
     );
-    markDirty();
+    queueNodePatch(editingNodeId, patch);
   }
 
   const editingNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null;
