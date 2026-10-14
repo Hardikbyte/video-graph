@@ -244,6 +244,17 @@ button {
   border-color: var(--accent);
 }
 
+.new-board-form input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.form-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
 .board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

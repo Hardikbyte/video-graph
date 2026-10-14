@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.js";
 import { api } from "../api/client.js";
@@ -11,6 +11,10 @@ export default function Boards() {
   const [boards, setBoards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const nameInput = useRef(null);
+  const creatingRef = useRef(false); // set at once, state alone is too slow for a double click
 
   async function load() {
     setLoading(true);
@@ -31,13 +35,24 @@ export default function Boards() {
 
   async function handleCreate(e) {
     e.preventDefault();
-    if (!newName.trim()) return;
+    if (creatingRef.current) return;
+    const name = newName.trim();
+    if (!name) {
+      setNameError("Type a name for the board first.");
+      nameInput.current?.focus();
+      return;
+    }
+    creatingRef.current = true;
+    setCreating(true);
     try {
-      const board = await api.createBoard(token, newName.trim());
+      const board = await api.createBoard(token, name);
       setNewName("");
       navigate(`/boards/${board._id}`);
     } catch (err) {
       toast.error(err, { title: "Could not create the board" });
+    } finally {
+      creatingRef.current = false;
+      setCreating(false);
     }
   }
 
@@ -66,13 +81,24 @@ export default function Boards() {
       <main className="content">
         <form className="new-board-form" onSubmit={handleCreate}>
           <input
+            ref={nameInput}
             placeholder="New board name..."
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            maxLength={100}
+            aria-invalid={nameError ? "true" : undefined}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (nameError) setNameError("");
+            }}
           />
-          <button className="btn btn-primary" type="submit">
-            Create board
+          <button className="btn btn-primary" type="submit" disabled={creating}>
+            {creating ? "Creating..." : "Create board"}
           </button>
+          {nameError && (
+            <p className="form-error" role="alert">
+              {nameError}
+            </p>
+          )}
         </form>
 
         {loading ? (
