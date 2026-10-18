@@ -10,7 +10,11 @@
     "seed:system-design": "node src/scripts/seedSystemDesign.js",
     "seed:boards": "node src/scripts/seedBoards.js",
     "audit:boards": "node src/scripts/auditBoards.js",
-    "migrate:boards": "node src/scripts/migrateBoards.js"
+    "migrate:boards": "node src/scripts/migrateBoards.js",
+    "migrate:users": "node src/scripts/migrateUsers.js",
+    "reset-password": "node src/scripts/resetPassword.js",
+    "test": "node --test \"src/**/*.test.js\"",
+    "test:integration": "node test/auth-isolation.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

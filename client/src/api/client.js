@@ -1,9 +1,15 @@
 import { buildApiError } from "../lib/apiError.js";
 
 // Bump together with API_VERSION in the server when the routes change.
-export const REQUIRED_API_VERSION = 2;
+export const REQUIRED_API_VERSION = 3;
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// Called when a request made with a saved login comes back 401, so the app can sign out.
+let unauthorizedHandler = null;
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
 
 async function request(path, { method = "GET", body, token, keepalive } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -26,7 +32,9 @@ async function request(path, { method = "GET", body, token, keepalive } = {}) {
 
   const bodyText = await res.text();
   if (!res.ok) {
-    throw buildApiError({ method, url, path, status: res.status, bodyText });
+    const error = buildApiError({ method, url, path, status: res.status, bodyText });
+    if (res.status === 401 && token) unauthorizedHandler?.(error);
+    throw error;
   }
 
   try {
@@ -37,8 +45,12 @@ async function request(path, { method = "GET", body, token, keepalive } = {}) {
 }
 
 export const api = {
-  login: (username, password) =>
-    request("/auth/login", { method: "POST", body: { username, password } }),
+  login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
+
+  signup: ({ name, email, password }) =>
+    request("/auth/signup", { method: "POST", body: { name, email, password } }),
+
+  me: (token) => request("/auth/me", { token }),
 
   listBoards: (token) => request("/boards", { token }),
 

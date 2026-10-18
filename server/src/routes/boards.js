@@ -3,27 +3,25 @@ import mongoose from "mongoose";
 import { v4 as uuid } from "uuid";
 import Board from "../models/Board.js";
 import auth from "../middleware/auth.js";
+import { wrapRouter } from "../lib/asyncRoute.js";
 
-const router = Router();
+const router = wrapRouter(Router());
 router.use(auth);
 
-// Express 4 does not catch rejected promises, so every route handler goes through this.
-const asyncRoute = (handler) => (req, res, next) =>
-  Promise.resolve(handler(req, res, next)).catch((err) => {
-    if (err.name === "ValidationError" || err.name === "CastError") {
-      return res.status(400).json({ error: err.message });
-    }
-    console.error(err);
-    // Outside production, say what really went wrong so the app can show it.
-    const detail = process.env.NODE_ENV === "production" ? undefined : `${err.name}: ${err.message}`;
-    return res.status(500).json({ error: "Server error", detail });
-  });
+// Who may open a board. Today that is only its owner. Sharing will extend these functions
+// (for example an $or with a members list), and every route below picks the change up.
+const accessibleBoards = (req) => ({ owner: req.userId }); // the boards list
+const boardAccess = (req) => ({ _id: req.params.id, owner: req.userId }); // open or edit one board
+const boardOwnerOnly = (req) => ({ _id: req.params.id, owner: req.userId }); // delete or rename
 
-for (const method of ["get", "post", "put", "patch", "delete"]) {
-  const register = router[method].bind(router);
-  router[method] = (path, ...handlers) => register(path, ...handlers.map(asyncRoute));
-}
-
+// Aggregations do not cast ids for us, so cast the id strings in a filter.
+const castIds = (filter) =>
+  Object.fromEntries(
+    Object.entries(filter).map(([key, value]) => [
+      key,
+      typeof value === 'string' && mongoose.isValidObjectId(value) ? new mongoose.Types.ObjectId(value) : value,
+    ])
+  );
 router.param("id", (req, res, next, id) => {
   if (!mongoose.isValidObjectId(id)) {
     return res.status(404).json({ error: "Board not found" });
@@ -115,7 +113,7 @@ function summarizeSections(names) {
 }
 
 router.get("/", async (req, res) => {
-  const boards = await Board.find({ owner: req.userId })
+  const boards = await Board.find(accessibleBoards(req))
     .select("name updatedAt createdAt")
     .sort({ updatedAt: -1 });
   res.json(boards);
@@ -132,7 +130,7 @@ router.post("/", async (req, res) => {
 });
 
 router.get("/:id", async (req, res) => {
-  const board = await Board.findOne({ _id: req.params.id, owner: req.userId });
+  const board = await Board.findOne(boardAccess(req));
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
   }
@@ -152,10 +150,7 @@ router.get("/:id/nodes", async (req, res) => {
 
   const [board] = await Board.aggregate([
     {
-      $match: {
-        _id: new mongoose.Types.ObjectId(req.params.id),
-        owner: new mongoose.Types.ObjectId(req.userId),
-      },
+      $match: castIds(boardAccess(req)),
     },
     {
       $project: {
@@ -195,7 +190,7 @@ router.put("/:id", async (req, res) => {
   let board;
   try {
     board = await Board.findOneAndUpdate(
-      { _id: req.params.id, owner: req.userId },
+      boardAccess(req),
       update,
       { new: true, runValidators: true }
     );
@@ -213,7 +208,7 @@ router.put("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  const board = await Board.findOneAndDelete({ _id: req.params.id, owner: req.userId });
+  const board = await Board.findOneAndDelete(boardOwnerOnly(req));
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
   }
@@ -240,7 +235,7 @@ router.post("/:id/nodes", async (req, res) => {
     return res.status(400).json({ error: nodeError });
   }
 
-  const board = await Board.findOne({ _id: req.params.id, owner: req.userId });
+  const board = await Board.findOne(boardAccess(req));
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
   }
@@ -261,7 +256,7 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const isCoordinate = (value) =>
   typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= COORD_LIMIT;
 
-const boardFilter = (req) => ({ _id: req.params.id, owner: req.userId });
+
 
 // Returns { error } or { value } for the style fields shared by create and patch.
 function parseEdgeStyle(body, { partial }) {
@@ -316,7 +311,7 @@ router.patch("/:id/layout", async (req, res) => {
     arrayFilters.push({ [`n${i}.id`]: nodeId });
   });
 
-  const result = await Board.updateOne(boardFilter(req), { $set }, { arrayFilters });
+  const result = await Board.updateOne(boardAccess(req), { $set }, { arrayFilters });
   if (result.matchedCount === 0) {
     return res.status(404).json({ error: "Board not found" });
   }
@@ -346,7 +341,7 @@ router.patch("/:id/nodes/:nodeId", async (req, res) => {
 
   // Read just this node (positional projection) so the existing rules can validate the result.
   const found = await Board.findOne(
-    { ...boardFilter(req), "nodes.id": req.params.nodeId },
+    { ...boardAccess(req), "nodes.id": req.params.nodeId },
     { "nodes.$": 1 }
   ).lean();
   if (!found) return res.status(404).json({ error: "Node not found" });
@@ -356,14 +351,14 @@ router.patch("/:id/nodes/:nodeId", async (req, res) => {
 
   const $set = {};
   for (const [key, value] of Object.entries(patch)) $set[`nodes.$[n].${key}`] = value;
-  await Board.updateOne(boardFilter(req), { $set }, { arrayFilters: [{ "n.id": req.params.nodeId }] });
+  await Board.updateOne(boardAccess(req), { $set }, { arrayFilters: [{ "n.id": req.params.nodeId }] });
   return res.json({ ok: true });
 });
 
 router.delete("/:id/nodes/:nodeId", async (req, res) => {
   const { nodeId } = req.params;
   // The node and every edge attached to it go in one write.
-  const result = await Board.updateOne(boardFilter(req), {
+  const result = await Board.updateOne(boardAccess(req), {
     $pull: { nodes: { id: nodeId }, edges: { $or: [{ source: nodeId }, { target: nodeId }] } },
   });
   if (result.matchedCount === 0) return res.status(404).json({ error: "Board not found" });
@@ -393,11 +388,15 @@ router.post("/:id/edges", async (req, res) => {
 
   // Matches only if both endpoints exist and the edge id is not already used.
   const result = await Board.updateOne(
-    { ...boardFilter(req), "nodes.id": { $all: [source, target] }, "edges.id": { $ne: id } },
+    { ...boardAccess(req), "nodes.id": { $all: [source, target] }, "edges.id": { $ne: id } },
     { $push: { edges: edge } }
   );
   if (result.matchedCount === 0) {
-    return res.status(400).json({ error: "Board, edge endpoints or edge id not valid" });
+    // Not the caller's board (or it does not exist): the same answer as every other route.
+    if (!(await Board.exists(boardAccess(req)))) {
+      return res.status(404).json({ error: "Board not found" });
+    }
+    return res.status(400).json({ error: "Edge endpoints do not exist or the edge id is already used" });
   }
   return res.status(201).json({ ok: true });
 });
@@ -415,7 +414,7 @@ router.patch("/:id/edges/:edgeId", async (req, res) => {
   const $set = {};
   for (const [key, value] of Object.entries(style.value)) $set[`edges.$[e].${key}`] = value;
   const result = await Board.updateOne(
-    { ...boardFilter(req), "edges.id": req.params.edgeId },
+    { ...boardAccess(req), "edges.id": req.params.edgeId },
     { $set },
     { arrayFilters: [{ "e.id": req.params.edgeId }] }
   );
@@ -424,7 +423,7 @@ router.patch("/:id/edges/:edgeId", async (req, res) => {
 });
 
 router.delete("/:id/edges/:edgeId", async (req, res) => {
-  const result = await Board.updateOne(boardFilter(req), {
+  const result = await Board.updateOne(boardAccess(req), {
     $pull: { edges: { id: req.params.edgeId } },
   });
   if (result.matchedCount === 0) return res.status(404).json({ error: "Board not found" });

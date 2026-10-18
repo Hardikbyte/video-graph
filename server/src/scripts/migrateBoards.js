@@ -1,7 +1,7 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import Board from "../models/Board.js";
-import User from "../models/User.js";
+import { findOwner } from "./lib/findOwner.js";
 
 // One-off, safe to run again. Uses targeted updates, so positions you moved are kept.
 //  1. nodes saved before node types existed get type "video"
@@ -17,8 +17,8 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   await mongoose.connect(process.env.MONGODB_URI);
   try {
-    const owner = await User.findOne({ username: process.env.SEED_USERNAME });
-    if (!owner) throw new Error("Seed user not found (check SEED_USERNAME)");
+    const owner = await findOwner(process.argv.slice(2));
+    
     const filter = { owner: owner._id };
 
     const untypedFilter = { ...filter, nodes: { $elemMatch: { type: { $exists: false } } } };
