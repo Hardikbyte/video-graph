@@ -1,73 +1,88 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.js";
-import Backdrop from "../components/Backdrop.jsx";
-import Logo from "../components/Logo.jsx";
-import ThemeSwitcher from "../components/ThemeSwitcher.jsx";
+import { validateEmail } from "../lib/validation.js";
+import AuthCard from "../components/AuthCard.jsx";
+import PasswordField from "../components/PasswordField.jsx";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, sessionMessage } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const location = useLocation();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    const problem = validateEmail(email);
+    setEmailError(problem);
+    if (problem) return;
+    if (!password) {
+      setError("Enter your password.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(username, password);
-      navigate("/boards");
+      await login(email.trim(), password);
+      navigate(location.state?.from || "/boards", { replace: true });
     } catch (err) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Could not log in");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="auth-page chai-page">
-      <Backdrop />
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <Logo asLink={false} />
-        <h1>Welcome back</h1>
-        <p className="auth-subtitle">
-          Sign in to organize your videos, notes and links on <span className="highlight">visual boards</span>.
-        </p>
+    <AuthCard
+      title="Welcome back"
+      lead={
+        <>
+          Log in to organize your videos, notes and links on <span className="highlight">visual boards</span>.
+        </>
+      }
+      onSubmit={handleSubmit}
+      footer={
+        <>
+          New here? <Link to="/signup">Create an account</Link>
+        </>
+      }
+    >
+      {sessionMessage && !error && <div className="auth-notice">{sessionMessage}</div>}
 
-        <label className="field">
-          <span>Username</span>
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-            autoComplete="username"
-            required
-          />
-        </label>
-
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-
-        {error && <div className="auth-error">{error}</div>}
-
-        <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
-      <div className="auth-theme">
-        <ThemeSwitcher />
+      <div className="field">
+        <label htmlFor="login-email">Email</label>
+        <input
+          id="login-email"
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (emailError) setEmailError("");
+          }}
+          autoComplete="email"
+          autoFocus
+          aria-invalid={emailError ? "true" : undefined}
+        />
+        {emailError && <small className="field-error">{emailError}</small>}
       </div>
-    </div>
+
+      <PasswordField label="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+
+      {error && (
+        <div className="auth-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      <button className="btn btn-primary" type="submit" disabled={loading}>
+        {loading ? "Logging in..." : "Log in"}
+      </button>
+    </AuthCard>
   );
 }

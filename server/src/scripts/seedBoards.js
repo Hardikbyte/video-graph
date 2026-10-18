@@ -2,15 +2,15 @@ import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import mongoose from "mongoose";
 import Board from "../models/Board.js";
-import User from "../models/User.js";
+import { findOwner } from "./lib/findOwner.js";
 import { BOARDS } from "./boards/index.js";
 import { buildGridBoard, fillMissingTitles, findProblems } from "./lib/boardBuilder.js";
 
 // Usage: node src/scripts/seedBoards.js [--only=slug,slug] [--dry-run] [--replace]
-// New boards are created for SEED_USERNAME. A board with the same name is skipped unless --replace.
+// New boards are created for --email=you@example.com (or SEED_EMAIL). A board with the same name is skipped unless --replace.
 
 function parseArgs(argv) {
-  const flags = new Set(argv.filter((a) => !a.startsWith("--only=")));
+  const flags = new Set(argv.filter((a) => !a.startsWith("--only=") && !a.startsWith("--email=")));
   const onlyArg = argv.find((a) => a.startsWith("--only="));
   return {
     dryRun: flags.has("--dry-run"),
@@ -69,8 +69,8 @@ export async function runSeed(argv) {
 
   await mongoose.connect(process.env.MONGODB_URI);
   try {
-    const owner = await User.findOne({ username: process.env.SEED_USERNAME });
-    if (!owner) throw new Error("Seed user not found (check SEED_USERNAME)");
+    const owner = await findOwner(process.argv.slice(2));
+    
 
     for (const { board, nodes, edges } of built) {
       const existing = await Board.findOne({ owner: owner._id, name: board.name });

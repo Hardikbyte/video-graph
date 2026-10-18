@@ -6,6 +6,7 @@ import { useInfiniteNodes } from "../hooks/useInfiniteNodes.js";
 import Backdrop from "./Backdrop.jsx";
 import BoardHeader from "./BoardHeader.jsx";
 import ListItem from "./ListItem.jsx";
+import PageError from "./PageError.jsx";
 import NodeFormModal from "./NodeFormModal.jsx";
 
 export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas }) {

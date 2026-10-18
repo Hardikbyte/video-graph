@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
 import Board from "../models/Board.js";
-import User from "../models/User.js";
+import { findOwner } from "./lib/findOwner.js";
 import { extractYoutubeId, validateNode } from "../routes/boards.js";
 
 // Read-only check of every board in the database. Run: npm run audit:boards
@@ -142,7 +142,7 @@ async function main() {
   const offline = process.argv.includes("--offline");
   await mongoose.connect(process.env.MONGODB_URI);
   try {
-    const owner = await User.findOne({ username: process.env.SEED_USERNAME });
+    const owner = await findOwner();
     const boards = await Board.find(owner ? { owner: owner._id } : {}).lean();
     console.log(`Auditing ${boards.length} boards (read-only)\n`);
 
