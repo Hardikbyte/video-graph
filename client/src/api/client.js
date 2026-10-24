@@ -72,6 +72,11 @@ export const api = {
     return request(`/boards/${id}/nodes${query ? `?${query}` : ""}`, { token });
   },
 
+  searchBoard: (token, id, query) => {
+    const params = new URLSearchParams({ q: query });
+    return request(`/boards/${id}/search?${params.toString()}`, { token });
+  },
+
   deleteBoard: (token, id) => request(`/boards/${id}`, { method: "DELETE", token }),
 
   addNode: (token, id, node) =>

@@ -8,6 +8,7 @@ import BoardHeader from "./BoardHeader.jsx";
 import ListItem from "./ListItem.jsx";
 import PageError from "./PageError.jsx";
 import NodeFormModal from "./NodeFormModal.jsx";
+import SearchBar from "./SearchBar.jsx";
 
 export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas }) {
   const { token } = useAuth();
@@ -24,6 +25,7 @@ export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas 
   }, [items.length, loadMore, reload]);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const sentinelRef = useRef(null);
   const headingRefs = useRef(new Map());
   const jumpTarget = useRef(null);
@@ -86,7 +88,12 @@ export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas 
   return (
     <div className="board-page chai-page">
       <Backdrop />
-      <BoardHeader name={name} view={view} onViewChange={onViewChange}>
+      <BoardHeader
+        name={name}
+        view={view}
+        onViewChange={onViewChange}
+        onOpenSearch={() => setShowSearch(true)}
+      >
         <button className="btn btn-primary btn-plain" onClick={() => setShowAddModal(true)}>
           + Add
         </button>
@@ -152,6 +159,13 @@ export default function BoardList({ boardId, view, onViewChange, onOpenOnCanvas 
           onClose={() => setShowAddModal(false)}
         />
       )}
+
+      <SearchBar
+        boardId={boardId}
+        open={showSearch}
+        onClose={() => setShowSearch(false)}
+        onSelectNode={(node) => onOpenOnCanvas(node.id)}
+      />
     </div>
   );
 }
