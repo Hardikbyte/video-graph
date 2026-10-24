@@ -4,6 +4,10 @@ import { v4 as uuid } from "uuid";
 import Board from "../models/Board.js";
 import auth from "../middleware/auth.js";
 import { wrapRouter } from "../lib/asyncRoute.js";
+import { syncNodeEmbedding, removeNodeEmbedding, removeBoardEmbeddings } from "../lib/syncEmbeddings.js";
+import NodeEmbedding from "../models/NodeEmbedding.js";
+import { generateEmbedding } from "../lib/embeddings.js";
+import { executeHybridSearch } from "../lib/hybridSearch.js";
 
 const router = wrapRouter(Router());
 router.use(auth);
@@ -176,6 +180,42 @@ router.get("/:id/nodes", async (req, res) => {
   res.json(response);
 });
 
+router.get("/:id/search", async (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (!query) {
+    return res.json({ results: [], total: 0 });
+  }
+
+  const board = await Board.findOne(boardAccess(req)).select("nodes name");
+  if (!board) {
+    return res.status(404).json({ error: "Board not found" });
+  }
+
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE));
+
+  let queryEmbedding = [];
+  try {
+    queryEmbedding = await generateEmbedding(query);
+  } catch (err) {
+    console.error("Failed to generate search query embedding:", err?.message || err);
+  }
+
+  const embeddings = await NodeEmbedding.find({ boardId: board._id }).select("nodeId embedding").lean();
+
+  const results = executeHybridSearch({
+    nodes: board.nodes,
+    embeddings,
+    query,
+    queryEmbedding,
+    options: { limit },
+  });
+
+  return res.json({
+    results,
+    total: results.length,
+  });
+});
+
 router.put("/:id", async (req, res) => {
   const { nodes, edges, name } = req.body || {};
   const update = {};
@@ -212,6 +252,7 @@ router.delete("/:id", async (req, res) => {
   if (!board) {
     return res.status(404).json({ error: "Board not found" });
   }
+  removeBoardEmbeddings(board._id);
   res.status(204).end();
 });
 
@@ -242,6 +283,7 @@ router.post("/:id/nodes", async (req, res) => {
 
   board.nodes.push(node);
   await board.save();
+  syncNodeEmbedding(board._id, node);
   res.status(201).json(board);
 });
 
@@ -352,6 +394,10 @@ router.patch("/:id/nodes/:nodeId", async (req, res) => {
   const $set = {};
   for (const [key, value] of Object.entries(patch)) $set[`nodes.$[n].${key}`] = value;
   await Board.updateOne(boardAccess(req), { $set }, { arrayFilters: [{ "n.id": req.params.nodeId }] });
+
+  const updatedNode = { ...found.nodes[0], ...patch };
+  syncNodeEmbedding(req.params.id, updatedNode);
+
   return res.json({ ok: true });
 });
 
@@ -362,6 +408,7 @@ router.delete("/:id/nodes/:nodeId", async (req, res) => {
     $pull: { nodes: { id: nodeId }, edges: { $or: [{ source: nodeId }, { target: nodeId }] } },
   });
   if (result.matchedCount === 0) return res.status(404).json({ error: "Board not found" });
+  removeNodeEmbedding(req.params.id, nodeId);
   return res.status(204).end();
 });
 

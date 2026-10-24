@@ -31,6 +31,7 @@ import TextNode from "./TextNode.jsx";
 import ImageNode from "./ImageNode.jsx";
 import LinkNode from "./LinkNode.jsx";
 import NodeFormModal from "./NodeFormModal.jsx";
+import SearchBar from "./SearchBar.jsx";
 
 const nodeTypes = { video: VideoNode, text: TextNode, image: ImageNode, link: LinkNode };
 const edgeTypes = { flow: FlowEdge };
@@ -98,6 +99,37 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
   const [error, setError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingNodeId, setEditingNodeId] = useState(null);
+  const [showSearch, setShowSearch] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (
+        (e.key === "/" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k")) &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)
+      ) {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleSelectNodeFromSearch = useCallback(
+    (node) => {
+      if (!node) return;
+      setNodes((nds) =>
+        nds.map((n) => ({
+          ...n,
+          selected: n.id === node.id,
+        }))
+      );
+      const x = node.position?.x ?? 0;
+      const y = node.position?.y ?? 0;
+      setCenter(x + 120, y + 90, { zoom: 1.15, duration: 800 });
+    },
+    [setCenter]
+  );
 
   // Each change is queued by entity and sent on its own (a moved node sends only its
   // new position), instead of re-sending the whole board.
@@ -361,7 +393,12 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
 
   return (
     <div className="board-page">
-      <BoardHeader name={board?.name} view={view} onViewChange={onViewChange}>
+      <BoardHeader
+        name={board?.name}
+        view={view}
+        onViewChange={onViewChange}
+        onOpenSearch={() => setShowSearch(true)}
+      >
         {sections.length > 1 && (
           <select
             className="jump-select"
@@ -471,6 +508,12 @@ function CanvasInner({ boardId, view, onViewChange, focusId }) {
           onClose={() => setEditingNodeId(null)}
         />
       )}
+      <SearchBar
+        boardId={boardId}
+        open={showSearch}
+        onClose={() => setShowSearch(false)}
+        onSelectNode={handleSelectNodeFromSearch}
+      />
     </div>
   );
 }
